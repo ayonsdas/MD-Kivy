@@ -67,3 +67,74 @@ class PerformanceMonitor:
 
     def get_memory_usage(self):
         return round(self.memory_usage, 2)
+    
+
+# class PerformanceMonitor:
+#     def __init__(self, sample_interval=0.5):
+#         self.sample_interval = sample_interval
+#         self.running = True
+#         self.process = psutil.Process()
+
+#         self.cpu_usage = 0.0
+#         self.cpu_history = collections.deque(maxlen=10)
+
+#         self.memory_usage = 0.0
+#         self.memory_history = collections.deque(maxlen=10)
+
+#         # For artificial boost logic
+#         self.artificial_boost = 0.0
+#         self.last_boost_time = datetime.min
+
+#         self.thread = threading.Thread(target=self._update_usage, daemon=True)
+#         self.thread.start()
+
+#     def _update_usage(self):
+#         while self.running:
+#             try:
+#                 # Get base CPU usage (adjusted for number of cores)
+#                 base_cpu = self.process.cpu_percent(interval=None) / psutil.cpu_count()
+
+#                 # Handle decay of artificial boost
+#                 seconds_since_boost = (datetime.now() - self.last_boost_time).total_seconds()
+#                 decay_rate = 10.0  # how fast the boost fades per second
+#                 self.artificial_boost = max(0, self.artificial_boost - decay_rate * seconds_since_boost)
+#                 self.last_boost_time = datetime.now()
+
+#                 # Combine real CPU with artificial boost
+#                 combined_cpu = base_cpu + self.artificial_boost
+#                 self.cpu_history.append(combined_cpu)
+#                 self.cpu_usage = sum(self.cpu_history) / len(self.cpu_history)
+
+#                 # Memory stays real only
+#                 raw_mem = psutil.virtual_memory().percent
+#                 self.memory_history.append(raw_mem)
+#                 self.memory_usage = sum(self.memory_history) / len(self.memory_history)
+
+#                 print(f"[DEBUG] CPU base={base_cpu:.2f}% + boost={self.artificial_boost:.2f}%, "
+#                       f"final={self.cpu_usage:.2f}%, Mem={self.memory_usage:.2f}%")
+
+#             except Exception as e:
+#                 print(f"[ERROR] {e}")
+#             time.sleep(self.sample_interval)
+
+#     def stop(self):
+#         self.running = False
+#         if self.thread.is_alive():
+#             self.thread.join()
+
+#     def get_cpu_usage(self):
+#         return round(self.cpu_usage, 2)
+
+#     def get_memory_usage(self):
+#         return round(self.memory_usage, 2)
+
+#     def trigger_boost(self, magnitude=25.0):
+#         """
+#         Call this when the user does something significant like:
+#         - Adding molecules
+#         - Toggling forces
+#         - Increasing sliders
+#         """
+#         self.artificial_boost += magnitude
+#         self.last_boost_time = datetime.now()
+
