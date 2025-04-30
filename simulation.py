@@ -25,10 +25,14 @@ from kivy.uix.boxlayout import BoxLayout
 from usage_graph import CPUUsageGraph  # Import Graph
 from performance_monitor import PerformanceMonitor  # Import CPU Monitor
 from memory_usage import MemoryUsageGraph  # 
+from speedometer import Speedometer  # Import Speedometer
 
 class WindowManager(ScreenManager):
     pass
 
+
+
+# 
 class GameScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -47,11 +51,14 @@ class GameScreen(Screen):
         # the Game Area (Shifted Left)
         self.game_area = GameLayout(
             size_hint=(0.7, 0.6),  # width slightly
-            pos_hint={'x': 0.05, 'center_y': 0.6}  # left
+            pos_hint={'x': 0.12, 'center_y': 0.6}  # left
         )
 
         #   Area to Root Layout for game
         self.root.add_widget(self.game_area)
+
+        self.speedometer = Speedometer(performance_monitor=self.monitor)
+        self.root.add_widget(self.speedometer)
 
         #  the preset selector spinner in the control section
         self.add_preset_spinner(self.root)
@@ -66,13 +73,12 @@ class GameScreen(Screen):
             pos_hint={'right': 0.96, 'top': 0.93}  # slightly further right
         )
 
-        # CPU & Memory Graphs (Smaller & Properly Positioned)
-        self.cpu_graph = CPUUsageGraph(monitor=self.monitor, size_hint=(1, 0.5))
-        self.memory_graph = MemoryUsageGraph(monitor=self.monitor, size_hint=(1, 0.5))
+        # # CPU & Memory Graphs (Smaller & Properly Positioned)
+        # self.cpu_graph = CPUUsageGraph(monitor=self.monitor, size_hint=(1, 0.5))
+        # self.memory_graph = MemoryUsageGraph(monitor=self.monitor, size_hint=(1, 0.5))
 
-        #  Inside the Container
-        graph_container.add_widget(self.cpu_graph)
-        graph_container.add_widget(self.memory_graph)
+
+    
 
         # Graphs to the Root Layout (NOT Covered by Background)
         self.root.add_widget(graph_container)
@@ -173,7 +179,7 @@ class GameScreen(Screen):
     def mPos(self, window, pos):
         self.cursOr.pos = (pos[0] - Window.width * 0.01, pos[1] - Window.height * 0.01)
 
-
+    # Defines call Back Function HEre for Slider Box!!!!
     def create_sliders(self):
         """Create the slider UI for gravity, delta, sigma, epsilon, speed, and size."""
         ui_panel = GridLayout(cols=3,

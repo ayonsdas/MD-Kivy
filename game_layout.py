@@ -8,6 +8,23 @@ from kivy.core.window import Window
 from random import uniform, randint
 import math
 from performance_monitor import PerformanceMonitor
+from performance_monitor import set_global_monitor
+from arduino_reading import ArduinoReading  # imported its reading right now!!!
+import serial
+import time
+import re
+
+
+# TO DO LIST 
+# Import ARDUNIO IN HERE after doing all teh c wrapping and all the information when shaking teh 
+# arduino the energy shoudl be converted into the scale factor and after being added to teh kinetic energy 
+# + scale factor in thsi stype of form and ==> then show thsi as a display on teh side panel 
+
+
+# Add ardunio reading into teh app itself
+# after this make sure to do the force calulation impact for ths cpu
+
+# and the more molecules the higher computational power tahts it!!!
 
 import psutil
 import os
@@ -15,6 +32,7 @@ import gc
 
 
 class GameLayout(Widget):
+
     intermolecular_forces = BooleanProperty(True)  # Toggle for intermolecular forces
     epsilon = NumericProperty(1.0)  # Lennard-Jones potential depth
     sigma = NumericProperty(1.0)  # Lennard-Jones potential sigma
@@ -26,15 +44,19 @@ class GameLayout(Widget):
 
     def __init__(self, **kwargs):
         super(GameLayout, self).__init__(**kwargs)
+        self.arduino = ArduinoReading('/dev/ttyUSB0')  # open serial once!!!!
         with self.canvas.before:
             Color(0, 0, 0, 1)  # Set background color of the game area (black)
             self.rect = Rectangle(pos=self.pos, size=self.size)
         self.bind(pos=self.update_rect, size=self.update_rect)
 
         self.molecules = []  # List of all molecules in the game
-        self.performance_monitor = PerformanceMonitor(sample_interval=1)
+        self.performance_monitor = PerformanceMonitor()
         
         Clock.schedule_interval(self.monitor_performance, 1)
+
+        self.performance_monitor = PerformanceMonitor() # dadada
+        set_global_monitor(self.performance_monitor) 
 
         self.bonds = {}  # Dictionary to store Line objects for each bond
         # print(self.molecule_radius)
@@ -345,16 +367,40 @@ class GameLayout(Widget):
     def toggle_update_mode(self):
         self.use_verlet = not self.use_verlet
 
-    def update(self, dt):
+    # Focus on this Update for monitor!!!!
+    # total energy should be aware of all the molecuels that are on teh screen as of right now
+    # shaking to energy ==> for arduino transfer
+    # siuolation box class like molecules but contain all molecules in the system
+    # sum over all mlecules in box to figure what total energy will be
+
+    # Whats above is not really needed!!!!
+    # READ THE ARDUNIO SIGNAL IN THIS AND INITIALIZ IN IN UPDATE 
+
+    # 
+    def update(self, dt):   # update take data ==> send thsi to monitor for performance
         """
         Update molecule positions, handle collisions, and update bonds.
         """
         total_energy = 0
-        temperature = 0
+        # ADD HERE ==> ARDUNO READING this is its initilization ==> added in init method above
+        temperature = 0  # added to arduio when shaking + strong amount of shaking scale and small amountof shaking scale
         pressure = 0
+
+        # getting data from arduino here!!!
+        arduino_data = self.arduino.get_xyz()
+        if arduino_data:
+            x, y, z = arduino_data
+            accel_magnitude = (x**2 + y**2 + z**2) ** 0.5
+            scale_factor = accel_magnitude / 16384.0  # MPU6050 normal gravity scale  ?? review
+
+            self.gravity = 9.8 * scale_factor   # shake effect
+            print(f"Arduino Accel → ARDUINO X:{x}, ARDUINO Y:{y}, ARDUINOZ:{z}, Gravity scale: {scale_factor:.2f}")
+        else:
+            scale_factor = 1 # if no change just keep this way
+
         for molecule in self.molecules:
             molecule.reset_total_force()
-            molecule.add_force(Vector(0, -self.gravity))
+            molecule.add_force(Vector(0, -self.gravity))  
             
         self.molecule_radius = self.size[0] * self.molecule_radius_ratio * self.size_factor
         self.apply_spring_force()
@@ -368,13 +414,13 @@ class GameLayout(Widget):
                     molecule1.resolve_collision(molecule2)
                     molecule1.update_color_based_on_speed()
                     molecule2.update_color_based_on_speed()
-                if self.intermolecular_forces:
+                if self.intermolecular_forces:  # consider this one for forces update within cpu
                     force = molecule1.lennard_jones_force(molecule2, self.epsilon, self.sigma, self.scale)
                     # print(force, i, j)
                     molecule1.add_force(force)
                     molecule2.add_force(-force)
                     
-            molecule1.update_force_arrow()
+            molecule1.update_force_arrow()   # in here check !!!
             if self.use_verlet:
                 molecule1.speed_cap = 500
                 molecule1.move(self.delta)
@@ -382,14 +428,15 @@ class GameLayout(Widget):
                 molecule1.speed_cap = 8
                 molecule1.move_nonVerlet()
 
-            # Calculate kinetic energy
-            kinetic_energy = 0.5 * (molecule1.total_velocity.length2())
-            total_energy += kinetic_energy
-            temperature += kinetic_energy  # Temperature proportional to kinetic energy
+            # Calculate kinetic energy ==> send this 
+            kinetic_energy = 0.5 * (molecule1.total_velocity.length2()) * scale_factor
+            total_energy += kinetic_energy   # impact  here
+            temperature += kinetic_energy  # + scale factor of arduion Temperature proportional to kinetic energy
+            #### Here to ADD this is where the scale factor supposed to be 
 
             pressure += abs(molecule1.total_velocity.x) + abs(molecule1.total_velocity.y)  # Simplified pressure calculation
 
-        self.total_energy_label.text = f"Total Energy: {total_energy:.2f}"
+        self.total_energy_label.text = f"Total Energy: {total_energy:.2f}"  # can change by arduino
         self.temperature_label.text = f"Temperature: {(temperature / len(self.molecules)) if len(self.molecules) else 0:.2f}"
         self.pressure_label.text = f"Pressure: {pressure:.2f}"
         # Update bond lines after molecule movement
@@ -407,8 +454,23 @@ class GameLayout(Widget):
         # process = psutil.Process()
         # current_memory = process.memory_info().rss  # In bytes
         # print(f"Current memory usage: {current_memory / (1024 * 1024)} MB")
+
+        self.performance_monitor.update_simulation_metrics(   # update?? do we need it??
+        molecule_count=len(self.molecules),
+        gravity=self.gravity,
+        epsilon=self.epsilon,
+        # force = self.force,
+        speed=self.speed_slider.value if self.speed_slider else 1.0
+    )
+
+
+    
+        self.performance_monitor.trigger_boost(15)  # Boost per update
+
+
+
         
-        process = psutil.Process()
+        # process = psutil.Process()
         
         # CPU Usage (Total system % and current process %)
         # total_cpu = psutil.cpu_percent(interval=0)  # Total CPU usage across all cores
@@ -426,7 +488,7 @@ class GameLayout(Widget):
         for molecule in self.molecules:
             molecule.rescale_position(self.pos[:], self.size[:])
             molecule.fix_radius(self.molecule_radius)
-
+    # 
     def set_gravity(self, value):
         """Update gravity for all molecules based on slider value."""
         self.gravity = value
@@ -459,6 +521,8 @@ class GameLayout(Widget):
 
     def generate_solid(self):
         """Generate a solid-like arrangement of molecules."""
+        self.performance_monitor.trigger_boost(40.0)   # added to help it
+
         self.clear_molecules()
         rows, cols = 11, 25
         spacing_x = self.size[0] * 0.039
@@ -474,6 +538,8 @@ class GameLayout(Widget):
 
     def generate_liquid(self):
         """Generate a liquid-like arrangement of molecules."""
+        self.performance_monitor.trigger_boost(40.0)
+
         self.clear_molecules()
         for _ in range(50):  # Create 50 molecules
             x = uniform(self.pos[0] + 50, self.pos[0] + self.size[0] - 50)
@@ -484,6 +550,8 @@ class GameLayout(Widget):
 
     def generate_gas(self):
         """Generate a gas-like arrangement of molecules."""
+        self.performance_monitor.trigger_boost(40.0)
+
         self.clear_molecules()
         for _ in range(15):  # Create 30 molecules
             x = uniform(self.pos[0] + 50, self.pos[0] + self.size[0] - 50)
