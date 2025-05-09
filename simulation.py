@@ -26,6 +26,8 @@ from usage_graph import CPUUsageGraph  # Import Graph
 from performance_monitor import PerformanceMonitor  # Import CPU Monitor
 from memory_usage import MemoryUsageGraph  # 
 from speedometer import Speedometer  # Import Speedometer
+from game_layout import GameLayout
+
 
 class WindowManager(ScreenManager):
     pass
@@ -56,9 +58,24 @@ class GameScreen(Screen):
 
         #   Area to Root Layout for game
         self.root.add_widget(self.game_area)
+        
 
         self.speedometer = Speedometer(performance_monitor=self.monitor)
         self.root.add_widget(self.speedometer)
+
+
+        self.game_area = GameLayout(
+            size_hint=(0.7, 0.6),  
+            pos_hint={'x': 0.12, 'center_y': 0.6}
+        )
+
+# Arduino label: get it from the same game_area
+        self.arduino_label = self.game_area.arduino_data_label
+
+        self.root.add_widget(self.game_area)
+        self.root.add_widget(self.arduino_label)  #  to root, not inside game_area
+
+
 
         #  the preset selector spinner in the control section
         self.add_preset_spinner(self.root)

@@ -13,6 +13,9 @@ from arduino_reading import ArduinoReading  # imported its reading right now!!!
 import serial
 import time
 import re
+from kivy.uix.label import Label
+import random
+
 
 
 # TO DO LIST 
@@ -44,11 +47,20 @@ class GameLayout(Widget):
 
     def __init__(self, **kwargs):
         super(GameLayout, self).__init__(**kwargs)
-        self.arduino = ArduinoReading('/dev/ttyUSB0')  # open serial once!!!!
+        # self.arduino = ArduinoReading('/dev/ttyUSB0')  # open serial once!!!! below connects twice and more
+        try:
+            self.arduino = ArduinoReading('/dev/ttyUSB0')
+        except Exception as e:
+            print(f"[WARNING] Arduino not connected: {e}")
+            self.arduino = None
+
         with self.canvas.before:
             Color(0, 0, 0, 1)  # Set background color of the game area (black)
             self.rect = Rectangle(pos=self.pos, size=self.size)
         self.bind(pos=self.update_rect, size=self.update_rect)
+
+        self.frame_counter = 0   # added this to make it less
+
 
         self.molecules = []  # List of all molecules in the game
         self.performance_monitor = PerformanceMonitor()
@@ -57,6 +69,8 @@ class GameLayout(Widget):
 
         self.performance_monitor = PerformanceMonitor() # dadada
         set_global_monitor(self.performance_monitor) 
+
+        
 
         self.bonds = {}  # Dictionary to store Line objects for each bond
         # print(self.molecule_radius)
@@ -72,6 +86,25 @@ class GameLayout(Widget):
         self.size_factor = 0.6
         self.molecule_radius = self.size[0] * self.molecule_radius_ratio * self.size_factor # Radius of the molecule
         self.forces_visible = True
+
+        # data from arduino shown on the screen as letters
+        # Will be updated in real time inside the label
+        self.arduino_data_label = Label(
+            text="Arduino X: 0.00\nArduino Y: 0.00\nArduino Z: 0.00\nGravity Scale: 0.00",
+            size_hint=(None, None),
+            size=(350, 25),
+            # pos=(10, Window.height - 30),
+            pos=(-60, 990),
+            color=(1, 1, 1, 1),  # white
+            bold=True,
+            font_size='16sp',
+            halign='left',
+            valign='top'
+        )
+        self.arduino_data_label.bind(size=self.arduino_data_label.setter('text_size'))
+  
+        # self.add_widget(self.arduino_data_label)
+
 
 
 
@@ -387,14 +420,23 @@ class GameLayout(Widget):
         pressure = 0
 
         # getting data from arduino here!!!
-        arduino_data = self.arduino.get_xyz()
+        # arduino_data = self.arduino.get_xyz()
+        arduino_data = self.arduino.get_xyz() if self.arduino else None
         if arduino_data:
             x, y, z = arduino_data
             accel_magnitude = (x**2 + y**2 + z**2) ** 0.5
             scale_factor = accel_magnitude / 16384.0  # MPU6050 normal gravity scale  ?? review
 
             self.gravity = 9.8 * scale_factor   # shake effect
+            self.arduino_data_label.text = (
+                    f"Arduino X: {x:.2f}\n"
+                    f"Arduino Y: {y:.2f}\n"
+                    f"Arduino Z: {z:.2f}\n"
+                    f"Gravity Scale: {scale_factor:.2f}"
+            )   
+
             print(f"Arduino Accel → ARDUINO X:{x}, ARDUINO Y:{y}, ARDUINOZ:{z}, Gravity scale: {scale_factor:.2f}")
+
         else:
             scale_factor = 1 # if no change just keep this way
 
@@ -404,6 +446,15 @@ class GameLayout(Widget):
             
         self.molecule_radius = self.size[0] * self.molecule_radius_ratio * self.size_factor
         self.apply_spring_force()
+
+        self.frame_counter += 1
+        if self.frame_counter % 10 == 0:
+                visible = random.sample(self.molecules, min(len(self.molecules), 10))  # only update 10 molecules
+                for molecule in visible:
+                    molecule.update_color_based_on_speed()
+                    if self.forces_visible:
+                        molecule.update_force_arrow()
+
 
         for i in range(len(self.molecules)):
             molecule1 = self.molecules[i]
@@ -455,13 +506,14 @@ class GameLayout(Widget):
         # current_memory = process.memory_info().rss  # In bytes
         # print(f"Current memory usage: {current_memory / (1024 * 1024)} MB")
 
-        self.performance_monitor.update_simulation_metrics(   # update?? do we need it??
-        molecule_count=len(self.molecules),
-        gravity=self.gravity,
-        epsilon=self.epsilon,
-        # force = self.force,
-        speed=self.speed_slider.value if self.speed_slider else 1.0
-    )
+        self.performance_monitor.update_simulation_metrics(
+            molecule_count=len(self.molecules),
+            gravity=self.gravity,
+            epsilon=self.epsilon,
+            speed=self.speed_slider.value if self.speed_slider else 1.0,
+            # forces_on=self.intermolecular_forces
+        )
+
 
 
     
@@ -566,6 +618,7 @@ class GameLayout(Widget):
             self.remove_widget(molecule)
         self.molecules.clear()
         gc.collect()
+    
 
     def create_molecule(self, x, y, vx, vy):
         """Create and add a molecule to the game layout."""

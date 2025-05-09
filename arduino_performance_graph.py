@@ -9,7 +9,7 @@ class ArduinoPerfomanceGraph(Widget):
         self.energy_history = deque(maxlen=100)  # Store the last 100 data points
         self.graph_color = (0,1,0,1)  # yeah green lol
 
-
+        
     def update_graph(self, new_energy_value):
         self.energy_history.append(new_energy_value)
         self.draw_graph()
