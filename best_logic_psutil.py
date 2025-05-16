@@ -1,64 +1,48 @@
-from kivy.app import App
-from kivy.uix.floatlayout import FloatLayout
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.gridlayout import GridLayout
-from kivy.uix.slider import Slider
-from kivy.uix.button import Button
-from kivy.uix.label import Label
-from kivy.uix.switch import Switch
-from kivy.uix.spinner import Spinner
-from kivy.uix.image import Image
-from kivy.uix.screenmanager import Screen, ScreenManager
-from kivy.uix.anchorlayout import AnchorLayout
-from kivy.core.window import Window
-from kivy.graphics import Color, Ellipse, Rectangle, Line
-from game_layout import GameLayout
-from HoverItem import HoverItem
-from TextBlurb import TextBlurb
-from CustomSlider import CustomSlider
-from SliderBox import SliderBox
-from SpinnerBox import SpinnerBox
-from simulation import GameScreen
-from start_screen import StartScreen
-from usage_graph import CPUUsageGraph
-from performance_monitor import PerformanceMonitor
+import psutil
+import threading
+import time
+import collections
 
-class WindowManager(ScreenManager):
+class PerformanceMonitor:
+    def __init__(self, sample_interval=0.2):
+        self.sample_interval = sample_interval
+        self.process = psutil.Process()
+        self.cpu_history = collections.deque(maxlen=30)
+        self.cpu_usage = 0.0
+        self.simulation_load = 0.0  # This will hold the live activity level
 
-    # ionic bond strongest show that bond strngth ==> indicate more strength
-    # 4bonds represented ==> in terms of strenth ==> ==> show regarding teh bodn breaking
-    # Some imperfections for fluctuation ==>
-    
-    def __init__(self, **kwargs):
-        """Set up WindowManager"""
-        
-        self.start_screen = kwargs.pop("start_screen")
-        self.game_screen = kwargs.pop("game_screen")
-        super().__init__(**kwargs)
-        
-        self.add_widget(self.start_screen)
-        self.add_widget(self.game_screen)
-        
-        # self.current = self.start_screen.name
-    
-    def start_game(self, name):
-        if name == self.start_screen.name:
-            # self.game_screen.reset()
-            self.current = self.game_screen.name
-            
-    def go_back(self, name):
-        if name == self.game_screen.name:
-            self.current = self.start_screen.name
+        self.thread = threading.Thread(target=self._monitor_loop, daemon=True)
+        self.thread.start()
 
-class GameApp(App):
+    def _monitor_loop(self):
+        while True:
+            # Simulate work proportional to simulation load (burn CPU)
+            for _ in range(int(self.simulation_load)):
+                _ = sum(i * i for i in range(30))  # Adjust as needed
 
-    def build(self):
-        
-        self.start_screen = StartScreen()
-        self.game_screen = GameScreen()
-        self.window_manager = WindowManager(start_screen=self.start_screen, game_screen=self.game_screen)
-        return self.window_manager
+            # Measure actual CPU usage
+            raw_cpu = self.process.cpu_percent(interval=self.sample_interval)
+
+            self.cpu_history.append(min(raw_cpu, 100))
+            self.cpu_usage = sum(self.cpu_history) / len(self.cpu_history)
+
+    def get_cpu_usage(self):
+        return round(self.cpu_usage, 1)
+
+    def update_simulation_metrics(self, molecule_count, gravity, epsilon, speed, forces_on):
+        # Scale the activity more smartly
+        force_multiplier = 2 if forces_on else 0.1
+        activity_score = (molecule_count ** 0.9) * gravity * epsilon * speed * force_multiplier
+        self.simulation_load = activity_score  # This is now live and smooth
 
 
-if __name__ == "__main__":
-    GameApp().run()
+
+# optional global access
+_global_monitor = None
+
+def set_global_monitor(monitor):
+    global _global_monitor
+    _global_monitor = monitor
+
+def get_global_monitor():
+    return _global_monitor
