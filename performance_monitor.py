@@ -1,52 +1,58 @@
-# --- performance_monitor.py ---
-import psutil
 import threading
 import time
-import collections
-from datetime import datetime
 
 class PerformanceMonitor:
     def __init__(self, sample_interval=0.2):
         self.sample_interval = sample_interval
-        self.process = psutil.Process()
-        self.cpu_history = collections.deque(maxlen=30) # changes from 10 to 30 to make less carzy
-        self.cpu_usage = 0.0
 
-        self.boost = 0.0
-        self.last_boost = time.time()
+        self._cpu_usage = 0.0         # what is shown on the needle
+        self._target_usage = 0.0      # desired needle position
+
+        self.rise_rate = 1.5
+        self.decay_rate = 1.5
 
         self.thread = threading.Thread(target=self._monitor_loop, daemon=True)
         self.thread.start()
 
     def _monitor_loop(self):
+        print("[MONITOR] Thread started")
         while True:
-            raw_cpu = self.process.cpu_percent(interval=None)
-            
-            # decay boost
-            now = time.time()
-            delta = now - self.last_boost
-            self.boost = max(0, self.boost - 5 * delta)
-            self.last_boost = now
+            if self._cpu_usage < self._target_usage:
+                self._cpu_usage += min(self.rise_rate, self._target_usage - self._cpu_usage)
+            elif self._cpu_usage > self._target_usage:
+                self._cpu_usage -= min(self.decay_rate, self._cpu_usage - self._target_usage)
 
-            usage = raw_cpu + self.boost
-            self.cpu_history.append(min(usage, 100))
-            self.cpu_usage = sum(self.cpu_history) / len(self.cpu_history)
-
+            self._cpu_usage = max(0, min(self._cpu_usage, 100))
             time.sleep(self.sample_interval)
 
     def get_cpu_usage(self):
-        return round(self.cpu_usage, 1)
+        return round(self._cpu_usage, 1)
 
-    def trigger_boost(self, amount=15):
-        self.boost += amount
-        self.last_boost = time.time()
+    def set_target_usage(self, value):
+        # Clip to 0-100
+        self._target_usage = min(max(value, 0), 100)
 
-    def update_simulation_metrics(self, molecule_count, gravity, epsilon, speed):
-        activity = molecule_count * 0.4 + gravity * 2 + epsilon * 2 + speed * 10
-        self.trigger_boost(activity)
+    def update_simulation_metrics(self, molecule_count, gravity, epsilon, speed, forces_on):
+        if molecule_count == 0:
+            self.set_target_usage(0)
+            return
+
+        force_multiplier = 2 if forces_on else 0.3
+
+        molecule_score = (molecule_count ** 1.2) * 0.5
+        gravity_score = gravity * 3
+        epsilon_score = epsilon * 2
+        speed_score = speed * 8
+
+        total_score = (molecule_score + gravity_score + epsilon_score + speed_score) * force_multiplier
+
+        self.set_target_usage(total_score)
+
+        # debug:
+        print(f"[UPDATE] Molecules: {molecule_count}, Target set to: {self._target_usage:.1f}")
 
 
-# optional global access
+# global access
 _global_monitor = None
 
 def set_global_monitor(monitor):

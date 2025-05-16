@@ -28,8 +28,6 @@ class ArduinoReading:
     
 
 
-
-
     # def __init__(self, port='/dev/ttyACM0', baud_rate=9600):
     #     self.port = port
     #     self.baud_rate = baud_rate
