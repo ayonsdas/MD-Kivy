@@ -15,7 +15,9 @@ import time
 import re
 from kivy.uix.label import Label
 import random
-
+import psutil
+import os
+import gc
 
 
 # TO DO LIST 
@@ -28,11 +30,6 @@ import random
 # after this make sure to do the force calulation impact for ths cpu
 
 # and the more molecules the higher computational power tahts it!!!
-
-import psutil
-import os
-import gc
-
 
 class GameLayout(Widget):
 
