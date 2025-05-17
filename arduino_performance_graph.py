@@ -1,42 +1,84 @@
 from kivy.uix.widget import Widget
-from kivy.graphics import Line, Color
-from collections import deque
+from kivy.graphics import Color, Line, Rectangle
+from kivy.clock import Clock
+from kivy.uix.label import Label
+import math
 
-# Responsible for transfering daat that is collected from the arduino to the display of the app
-class ArduinoPerfomanceGraph(Widget):
+class ArduinoGraph(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.energy_history = deque(maxlen=100)  # Store the last 100 data points
-        self.graph_color = (0,1,0,1)  # yeah green lol
+        self.size_hint = (None, None)
+        self.size = (300, 100)
+        self.pos_hint = {'right': 0.99, 'y': 0.4}
 
-        
-    def update_graph(self, new_energy_value):
-        self.energy_history.append(new_energy_value)
-        self.draw_graph()
-        self.update_graph_color(new_energy_value)
+        self.max_points = 300  # Number of points in the graph
+        self.data_points = [0] * self.max_points
 
-    def draw_graph(self):
-        self.canvas_clear()
-        if not self.energy_history:
-            return
-        
-        with self.canvas():
-            Color(self.graph_color)
-            max_energy = max(self.energy_history)
-            min_energy = min(self.energy_history)
-            width,height = self.width, self.height
-            points= []
-            for i, energy, in enumerate(self.energy_history):
-                x = i * width / len(self.energy_history)
-                y = height * (energy - min_energy) / (max_energy - min_energy)
+        # Motion label
+        self.motion_label = Label(
+            text="Motion: Low",
+            size_hint=(None, None),
+            size=(150, 30),
+            pos=(10, self.height - 30),  # near top left
+            color=(1, 1, 1, 1),
+            font_size='16sp'
+        )
+        self.add_widget(self.motion_label)
 
+        Clock.schedule_interval(self.update_graph, 0.05)
 
-                # Incomplete Complete!!!!
-                
+    def add_data_point(self, value):
+        # Smoothing: weighted average with previous value
+        if self.data_points:
+            value = 0.6 * self.data_points[-1] + 0.4 * value
 
+        self.data_points.pop(0)
+        self.data_points.append(value)
 
+    def update_graph(self, dt):
+        self.canvas.clear()
 
-        
+        magnitude = self.data_points[-1] * 16384.0  # restore original range to decide color
 
+        with self.canvas:
+            # Background
+            Color(0.1, 0.1, 0.1, 1)
+            Rectangle(pos=self.pos, size=self.size)
 
- 
+            # Dynamic color based on motion strength
+            if magnitude < 2000:
+                Color(0.3, 1, 0.3, 1)  # Green
+            elif magnitude < 10000:
+                Color(1, 1, 0.3, 1)  # Yellow
+            else:
+                Color(1, 0.4, 0.4, 1)  # Red
+
+            # Smooth line using midpoint interpolation
+            points = []
+            prev_y = self.y + (self.data_points[0] * self.height / 4)
+            for i in range(1, len(self.data_points)):
+                x = self.x + i
+                current_y = self.y + (self.data_points[i] * self.height / 4)
+                mid_y = (prev_y + current_y) / 2
+                points += [x, mid_y]
+                prev_y = current_y
+
+            if len(points) >= 4:
+                Line(points=points, width=1.5)
+
+        # Reposition label in case size or position changed
+        self.motion_label.pos = (self.x + 10, self.y + self.height - 30)
+
+    def feed_arduino(self, x, y, z):
+        magnitude = math.sqrt(x**2 + y**2 + z**2)
+        normalized = magnitude / 16384.0
+        self.add_data_point(normalized)
+
+        # Update label based on magnitude
+        if magnitude < 2000:
+            level = "Low"
+        elif magnitude < 10000:
+            level = "Medium"
+        else:
+            level = "Strong"
+        self.motion_label.text = f"Motion: {level}"

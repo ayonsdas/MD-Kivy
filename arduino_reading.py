@@ -9,7 +9,7 @@ import re
 # Plug in Arduino Test tHE port Later
 
 #TO DO: Gravity Scale affects the ARDUINO
-# One reading at a Time  ==> listening and transfering data through the serial port to collect data to python from C++
+# One reading at a Time  ==> listening and transfering data through the serial port to collect data to python from C
 class ArduinoReading:
     def __init__(self, port='/dev/ttyUSB0', baud_rate=9600):
         self.serial_connection = serial.Serial(port, baud_rate)

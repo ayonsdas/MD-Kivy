@@ -28,6 +28,7 @@ from memory_usage import MemoryUsageGraph  #
 from speedometer import Speedometer  # Import Speedometer
 from game_layout import GameLayout
 from performance_monitor import PerformanceMonitor
+from arduino_performance_graph import ArduinoGraph
 
 
 class WindowManager(ScreenManager):
@@ -45,35 +46,80 @@ class GameScreen(Screen):
         # Create Performance Monitor
         self.monitor = PerformanceMonitor()
 
-        # Root layout for the entire screen
+#        layout for the entire screen
         self.root = FloatLayout()
 
-        #   a grey background (ONLY for the game UI, NOT the graphs)
+#        background
         self.add_background(self.root)
 
-        # the Game Area (Shifted Left)
+#        Arduino graph first
+        self.arduino_graph = ArduinoGraph()
+
+#        GameLayout with both monitor and arduino graph
         self.game_area = GameLayout(
             performance_monitor=self.monitor,
-            size_hint=(0.7, 0.6),  # width slightly
-            pos_hint={'x': 0.12, 'center_y': 0.6}  # left
+            arduino_graph=self.arduino_graph,
+            size_hint=(0.7, 0.6),
+            pos_hint={'x': 0.12, 'center_y': 0.6}
         )
 
-        #   Area to Root Layout for game
+#        GameLayout to root
         self.root.add_widget(self.game_area)
-        
 
+        # Add Speedometer
         self.speedometer = Speedometer(performance_monitor=self.monitor)
         self.root.add_widget(self.speedometer)
 
+        self.cpu_usage_label = Label(
+            text="[b]CPU % Usage[/b]",   # bold
+            markup=True,
+            font_size='14sp',
+            color=(1, 1, 1, 1),         # white
+            size_hint=(None, None),
+            size=(150, 30),
+            halign='center',
+            valign='middle',
+            pos=(0, 0)  # will be updated below
+        )
+        self.root.add_widget(self.cpu_usage_label)
 
-        # self.game_area = GameLayout(
-        #     size_hint=(0.7, 0.6),  
-        #     pos_hint={'x': 0.12, 'center_y': 0.6}
-        # )
+        def update_cpu_label_pos(*args):
+            self.cpu_usage_label.pos = (
+            self.speedometer.x + (self.speedometer.width / 2) - (self.cpu_usage_label.width / 2),
+            self.speedometer.y - 39  # 39 px below the speedometer
+    )
 
-# Arduino label: get it from the same game_area
+        self.speedometer.bind(pos=update_cpu_label_pos, size=update_cpu_label_pos)
+
+        # Add Arduino graph to the root
+        self.root.add_widget(self.arduino_graph)
+
+
+        # Label below Arduino Graph
+        self.arduino_graph_label = Label(
+            text="Arduino Acceleration",
+            font_size='13sp',
+            color=(1, 1, 1, 1),
+            font_name="Roboto-Bold",  # match visual style
+            halign='center',
+            valign='middle',
+            size_hint=(None, None),
+            size=(250, 30)
+        )
+        
+        self.root.add_widget(self.arduino_graph_label)
+
+#        label stays aligned under the graph even if it moves
+        def update_arduino_label_pos(*args):
+            self.arduino_graph_label.pos = (
+            self.arduino_graph.x + 40,
+            self.arduino_graph.y - 29
+    )
+        self.arduino_graph.bind(pos=update_arduino_label_pos)
+
+
+        # Arduino label: get it from the same game_area
         self.arduino_label = self.game_area.arduino_data_label
-
         self.root.add_widget(self.arduino_label)  #  to root, not inside game_area
 
 

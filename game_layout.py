@@ -42,7 +42,7 @@ class GameLayout(Widget):
     use_verlet = True
     
 
-    def __init__(self, performance_monitor, **kwargs):
+    def __init__(self, performance_monitor, arduino_graph = None, **kwargs):
         super(GameLayout, self).__init__(**kwargs)
         # self.arduino = ArduinoReading('/dev/ttyUSB0')  # open serial once!!!! below connects twice and more
         try:
@@ -60,12 +60,13 @@ class GameLayout(Widget):
         self.frame_counter = 0   # added this to make it less
         self.performance_monitor = performance_monitor
 
+        self.arduino_graph = arduino_graph
+
         self.molecules = []  # List of all molecules in the game        
         Clock.schedule_interval(self.monitor_performance, 1)
         set_global_monitor(self.performance_monitor) 
 
-        
-
+    
         self.bonds = {}  # Dictionary to store Line objects for each bond
         # print(self.molecule_radius)
         self.old_pos = self.pos[:]
@@ -100,16 +101,11 @@ class GameLayout(Widget):
         # self.add_widget(self.arduino_data_label)
 
 
-
-
 # Work on this part to log CPU usage and Memory Usage
     def monitor_performance(self, dt):
         cpu_usage = self.performance_monitor.get_cpu_usage()
         atom_count = len(self.molecules)
         print(f"Atoms: {atom_count}, CPU Usage: {cpu_usage:.2f}%")
-
-
-
 
         # Variable to store the scheduled update event
         # self.update_event = None
@@ -419,6 +415,13 @@ class GameLayout(Widget):
                     f"Arduino Z: {z:.2f}\n"
                     f"Gravity Scale: {scale_factor:.2f}"
             )   
+            if self.arduino_graph:
+                self.arduino_graph.feed_arduino(x, y, z)
+
+            arduino_usage = min((accel_magnitude / 16384.0) * 100, 100)
+
+# Send it to the speedometer via the monitor
+            self.performance_monitor.set_target_usage(arduino_usage)
 
             print(f"Arduino Accel → ARDUINO X:{x}, ARDUINO Y:{y}, ARDUINOZ:{z}, Gravity scale: {scale_factor:.2f}")
 
@@ -500,13 +503,7 @@ class GameLayout(Widget):
         )
 
 
-
-
-    
         # self.performance_monitor.trigger_boost(15)  # Boost per update
-
-
-
         
         # process = psutil.Process()
         
@@ -607,7 +604,6 @@ class GameLayout(Widget):
 
         # self.performance_monitor.simulation_load = 0.0 # to clear molecules back to normal
     
-
     def create_molecule(self, x, y, vx, vy):
         """Create and add a molecule to the game layout."""
         molecule = Molecule(
