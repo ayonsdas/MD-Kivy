@@ -11,7 +11,7 @@ import re
 #TO DO: Gravity Scale affects the ARDUINO
 # One reading at a Time  ==> listening and transfering data through the serial port to collect data to python from C
 class ArduinoReading:
-    def __init__(self, port='/dev/ttyUSB0', baud_rate=9600):
+    def __init__(self, port='/dev/ttyUSB0', baud_rate=9600):   
         self.serial_connection = serial.Serial(port, baud_rate)
         time.sleep(2)
 
@@ -25,6 +25,30 @@ class ArduinoReading:
             except Exception as e:
                 print("Read error:", e)
         return None  # No new data
+    
+
+    # WHen wreless thing is going to be done than do it
+    # take this part of code to fentch extra info about HIGH and LOW and Senosr for rotation 
+# 
+# Code from C !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#     void  loop(){
+#   int sensorValue = analogRead(A0);
+#   // print out the value you read:
+#   Serial.println(sensorValue);
+#   delay(1);  // delay in between reads for stability
+  
+#   // read the state of the pushbutton value:
+#   buttonState = digitalRead(buttonPin);
+
+#   // check if the pushbutton is pressed. If it is, the buttonState is HIGH:
+#   if (buttonState == HIGH) {
+#     // turn LED on:
+#     Serial.println("HIGH");
+#   } else {
+#     // turn LED off:
+#     Serial.println("LOW");
+#   }
+  
     
 
 

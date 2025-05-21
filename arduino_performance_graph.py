@@ -25,7 +25,7 @@ class ArduinoGraph(Widget):
         )
         self.add_widget(self.motion_label)
 
-        Clock.schedule_interval(self.update_graph, 0.05)
+        Clock.schedule_interval(self.update_graph, 0.01) # from 0.05
 
     def add_data_point(self, value):
         # Smoothing: weighted average with previous value
@@ -36,6 +36,7 @@ class ArduinoGraph(Widget):
         self.data_points.append(value)
 
     def update_graph(self, dt):
+        # update the graph to return to 0 when not shaken!!!!!!!!!!!
         self.canvas.clear()
 
         magnitude = self.data_points[-1] * 16384.0  # restore original range to decide color

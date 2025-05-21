@@ -55,7 +55,7 @@ class GameScreen(Screen):
 #        Arduino graph first
         self.arduino_graph = ArduinoGraph()
 
-#        GameLayout with both monitor and arduino graph
+#        GameLayout with both monitor and arduino graph <== make it glow like speedometer
         self.game_area = GameLayout(
             performance_monitor=self.monitor,
             arduino_graph=self.arduino_graph,
@@ -97,7 +97,7 @@ class GameScreen(Screen):
 
         # Label below Arduino Graph
         self.arduino_graph_label = Label(
-            text="Arduino Acceleration",
+            text="Arduino Energy Input",
             font_size='13sp',
             color=(1, 1, 1, 1),
             font_name="Roboto-Bold",  # match visual style
