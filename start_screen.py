@@ -32,9 +32,9 @@ class StartScreen(Screen):
 
     def add_video_player(self, root):
         self.video_paths = [
-            os.path.join(os.path.dirname(__file__), "2480792-hd_1920_1080_24fps.mp4"),
-            os.path.join(os.path.dirname(__file__), "3571264-uhd_3840_2160_30fps.mp4"),
-            os.path.join(os.path.dirname(__file__), "output.mp4")
+            os.path.join(os.path.dirname(__file__), "25711-352026488_small.mp4"),
+            os.path.join(os.path.dirname(__file__), "18910-297379533_small.mp4"),
+            os.path.join(os.path.dirname(__file__), "10953-226983371_small.mp4")
         ]
 
         self.video_paths = [
