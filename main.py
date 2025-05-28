@@ -3,7 +3,7 @@ from kivy.uix.screenmanager import ScreenManager, Screen
 from simulation import GameScreen
 from start_screen import StartScreen
 
-
+# make it adjustable to differnet size screens
 class WindowManager(ScreenManager):
     def __init__(self, **kwargs):
         self.start_screen = kwargs.pop("start_screen")

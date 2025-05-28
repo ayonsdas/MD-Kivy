@@ -16,8 +16,8 @@ class ArduinoReading:
         time.sleep(2)
 
     def get_xyz(self):
-        while self.serial_connection.in_waiting:
-            try:
+        while self.serial_connection.in_waiting: # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            try: # modify this with respect to thec current arduino code == just for me: not needed for code change: now this one reads from wirless if thats needed
                 line = self.serial_connection.readline().decode('utf-8').strip()
                 match = re.search(r'X\s*=\s*(-?\d+)\s*\|\s*Y\s*=\s*(-?\d+)\s*\|\s*Z\s*=\s*(-?\d+)', line)
                 if match:
@@ -29,7 +29,7 @@ class ArduinoReading:
 
     # WHen wreless thing is going to be done than do it
     # take this part of code to fentch extra info about HIGH and LOW and Senosr for rotation 
-# 
+# Possibility !!!!
 # Code from C !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #     void  loop(){
 #   int sensorValue = analogRead(A0);
