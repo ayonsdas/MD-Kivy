@@ -76,6 +76,7 @@ class StartScreen(Screen):
     def add_video_player(self, root):
         self.video_paths = [
             os.path.join(os.path.dirname(__file__), "m_to_nm title.mp4"),
+            os.path.join(os.path.dirname(__file__), "m_to_nm_julian.mp4"),
             os.path.join(os.path.dirname(__file__), "m_to_nm_remote.mp4"),
             os.path.join(os.path.dirname(__file__), "m_to_nm_battery_outer.mp4"),
             os.path.join(os.path.dirname(__file__), "m_to_nm_battery_separator.mp4"),
