@@ -99,7 +99,7 @@ class StartScreen(Screen):
         self.loop_video = None
         self.play_intro_video()
 
-        Window.bind(on_mouse_down=self.on_click_next_video)
+        Window.bind(on_touch_down=self.on_touch_down_global) # figure out how to make it respond to touch!!!!!!
 
     def play_intro_video(self):
         if self.video_index >= len(self.video_paths):
@@ -135,7 +135,7 @@ class StartScreen(Screen):
             hide_text.start(self.keep_clicking_label)
 
             black_in = Animation(opacity_level=1, duration=0.4)
-            black_in.bind(on_complete=lambda *_: self.transition_video(old_video))
+            black_in.bind(on_complete=lambda *_: self.transition_video(old_video)) # remove interatction  on the video??
             black_in.start(self.fade_overlay)
 
     def transition_video(self, old_video):
@@ -261,6 +261,12 @@ class StartScreen(Screen):
             self.button_panel.pos = self.panel_wrapper.pos
             self.button_panel.size = (1000, 100)
             self.panel_wrapper.size = (1000, 100)
+
+    # touch screen part!!!
+    def on_touch_down_global(self, window, touch):
+        if hasattr(self, 'video') and self.video and self.video.state == 'stop':
+            self.on_click_next_video()
+        return False
 
     def start_game(self):
         self.manager.current = "GameScreen"

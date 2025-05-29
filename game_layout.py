@@ -82,14 +82,10 @@ class GameLayout(Widget):
         self.molecule_radius = self.size[0] * self.molecule_radius_ratio * self.size_factor # Radius of the molecule
         self.forces_visible = True
 
-        # data from arduino shown on the screen as letters
-        # Will be updated in real time inside the label
         self.arduino_data_label = Label(
             text="Arduino X: 0.00\nArduino Y: 0.00\nArduino Z: 0.00\nGravity Scale: 0.00",
-            size_hint=(None, None),
-            size=(350, 25),
-            # pos=(10, Window.height - 30),
-            pos=(-60, 990),
+            size_hint=(0.2, 0.15),  # Take up 20% width and 15% height of parent
+            pos_hint={"x": 0.02, "top": 0.98},  # Near top-left corner
             color=(1, 1, 1, 1),  # white
             bold=True,
             font_size='16sp',
@@ -360,7 +356,7 @@ class GameLayout(Widget):
         """Start the simulation update loop."""
         if not self.simulation_running:
             self.simulation_running = True
-            self.update_event = Clock.schedule_interval(self.update, 1 / 60.0)  # Default speed at 60 FPS
+            self.update_event = Clock.schedule_interval(self.update, 1 / 30.0)  # Default speed was 60 FPS
 
     def stop_simulation(self):
         """Stop the simulation update loop."""
@@ -376,7 +372,7 @@ class GameLayout(Widget):
             self.update_event.cancel()
         
         # Schedule with the new interval based on the speed factor
-        new_interval = (1 / 60.0) / speed_factor  # Adjust interval according to speed factor <=== this is used for updatng simulation
+        new_interval = (1 / 30.0) / speed_factor  # Adjust interval according to speed factor <=== this is used for updatng simulation
         self.update_event = Clock.schedule_interval(self.update, new_interval)
         
     def set_size(self, size_factor):

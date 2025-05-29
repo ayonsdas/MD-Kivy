@@ -47,7 +47,7 @@ class GameScreen(Screen):
         self.monitor = PerformanceMonitor()
 
 #        layout for the entire screen
-        self.root = FloatLayout()
+        self.root = FloatLayout(size_hint=(1, 1), pos_hint={"x": 0, "y": 0})
 
 #        background
         self.add_background(self.root)
@@ -66,48 +66,56 @@ class GameScreen(Screen):
 #        GameLayout to root
         self.root.add_widget(self.game_area)
 
-        # Add Speedometer
-        self.speedometer = Speedometer(performance_monitor=self.monitor)
-        self.root.add_widget(self.speedometer)
+        # ------------------ RIGHT SIDE PANEL -------------------
+        # Box that holds speedometer, CPU label, and Arduino graph
+        self.right_panel = BoxLayout(
+            orientation='vertical',
+            size_hint=(0.25, 0.6),
+            pos_hint={'right': 0.99, 'top': 0.94},
+            spacing=8
+        )
 
+        # Speedometer at the top
+        self.speedometer = Speedometer(performance_monitor=self.monitor)
+        self.speedometer.size_hint = (0.57, 0.38)
+
+
+        # CPU label below it
         self.cpu_usage_label = Label(
-            text="[b]CPU % Usage[/b]",   # bold
+            text="[b]CPU % Usage[/b]",
             markup=True,
             font_size='14sp',
-            color=(1, 1, 1, 1),         # white
-            size_hint=(None, None),
-            size=(150, 30),
+            color=(1, 1, 1, 1),
+            size_hint=(1, 0.1),
             halign='center',
-            valign='middle',
-            pos=(0, 0)  # will be updated below
+            valign='middle'
         )
-        self.root.add_widget(self.cpu_usage_label)
+        self.cpu_usage_label.bind(size=self.cpu_usage_label.setter('text_size'))
 
-        def update_cpu_label_pos(*args):
-            self.cpu_usage_label.pos = (
-            self.speedometer.x + (self.speedometer.width / 2) - (self.cpu_usage_label.width / 2),
-            self.speedometer.y - 39  # 39 px below the speedometer
-    )
+        # Arduino Graph + Label
+        # self.arduino_graph = ArduinoGraph()
+        # self.arduino_graph.size_hint = (1, 0.25)
 
-        self.speedometer.bind(pos=update_cpu_label_pos, size=update_cpu_label_pos)
-
-        # Add Arduino graph to the root
-        self.root.add_widget(self.arduino_graph)
-
-
-        # Label below Arduino Graph
         self.arduino_graph_label = Label(
             text="Arduino Energy Input",
             font_size='13sp',
             color=(1, 1, 1, 1),
-            font_name="Roboto-Bold",  # match visual style
             halign='center',
             valign='middle',
-            size_hint=(None, None),
-            size=(250, 30)
+            size_hint=(1, 0.1)
         )
+        self.arduino_graph_label.bind(size=self.arduino_graph_label.setter('text_size'))
+
+        # Add to right panel
+        self.right_panel.add_widget(self.speedometer)
+        self.right_panel.add_widget(self.cpu_usage_label)
+        self.right_panel.add_widget(self.arduino_graph)
+        self.right_panel.add_widget(self.arduino_graph_label)
+
         
-        self.root.add_widget(self.arduino_graph_label)
+
+        # Add right panel to root layout
+        self.root.add_widget(self.right_panel)
 
 #        label stays aligned under the graph even if it moves
         def update_arduino_label_pos(*args):
@@ -168,7 +176,7 @@ class GameScreen(Screen):
         self.spinner_row = BoxLayout(orientation='horizontal', size_hint=(0.4, None), height=40, pos_hint={'center_x': 0.3, 'y': 0.085})
 
         # Label for the preset spinner
-        # preset_label = Label(text="Presets:", size_hint=(0.4, 1), font_size=14)
+        # preset_label = Label(text="Presets:", size_hint=(0.4, 1, size_hint=(None, None)), font_size=14)
         self.preset_label = HoverItem(size_hint=(1, 1), 
                                       hoverSource="Graphics/Presets.png", 
                                       defaultSource="Graphics/Presets.png", 
@@ -432,7 +440,7 @@ class GameScreen(Screen):
     # def create_switch(self, label_text, callback):
     #     """Helper to create labeled switches."""
     #     container = BoxLayout(orientation='horizontal', size_hint=(0.6, None), height=50)
-    #     label = Label(text=label_text, size_hint=(0.6, 1))
+    #     label = Label(text=label_text, size_hint=(0.6, 1, size_hint=(None, None)))
     #     switch = Switch(active=True, size_hint=(0.4, 1))
     #     switch.bind(active=callback)
     #     container.add_widget(label)
