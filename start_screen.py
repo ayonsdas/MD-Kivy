@@ -99,12 +99,17 @@ class StartScreen(Screen):
         self.loop_video = None
         self.play_intro_video()
 
-        Window.bind(on_touch_down=self.on_touch_down_global) # figure out how to make it respond to touch!!!!!!
+        Window.bind(on_touch_down=self.on_touch_down_global)
 
     def play_intro_video(self):
         if self.video_index >= len(self.video_paths):
             self.play_loop_video()
             return
+
+        if self.video:
+            self.video.state = 'stop'
+            self.video.unload()
+            self.root.remove_widget(self.video)
 
         video_path = self.video_paths[self.video_index]
 
@@ -113,6 +118,8 @@ class StartScreen(Screen):
             state='play',
             options={'eos': 'stop'},
             allow_stretch=True,
+            keep_ratio=False,
+            volume=0,
             size_hint=(1, 1),
             pos_hint={"x": 0, "y": 0}
         )
@@ -121,22 +128,19 @@ class StartScreen(Screen):
         self.root.add_widget(self.video, index=1)
         self.bring_buttons_to_front()
 
-        fade_in_video = Animation(opacity=1, duration=0.5)
-        fade_out_overlay = Animation(opacity_level=0, duration=0.6)
-        fade_in_video.start(self.video)
-        fade_out_overlay.start(self.fade_overlay)
+        Animation(opacity=1, duration=0.5).start(self.video)
+        Animation(opacity_level=0, duration=0.6).start(self.fade_overlay)
 
     def on_click_next_video(self, *args):
         if hasattr(self, 'video') and self.video and self.video.state == 'stop':
             self.video_index += 1
             old_video = self.video
 
-            hide_text = Animation(opacity=0, duration=0.3)
-            hide_text.start(self.keep_clicking_label)
+            Animation(opacity=0, duration=0.3).start(self.keep_clicking_label)
 
-            black_in = Animation(opacity_level=1, duration=0.4)
-            black_in.bind(on_complete=lambda *_: self.transition_video(old_video)) # remove interatction  on the video??
-            black_in.start(self.fade_overlay)
+            fade_black = Animation(opacity_level=1, duration=0.4)
+            fade_black.bind(on_complete=lambda *_: self.transition_video(old_video))
+            fade_black.start(self.fade_overlay)
 
     def transition_video(self, old_video):
         if self.video_index >= len(self.video_paths):
@@ -144,11 +148,18 @@ class StartScreen(Screen):
             self.play_loop_video()
             return
 
+        if old_video:
+            old_video.state = 'stop'
+            old_video.unload()
+            self.root.remove_widget(old_video)
+
         new_video = Video(
             source=self.video_paths[self.video_index],
             state='play',
             options={'eos': 'stop'},
             allow_stretch=True,
+            keep_ratio=False,
+            volume=0,
             size_hint=(1, 1),
             pos_hint={"x": 0, "y": 0}
         )
@@ -162,28 +173,25 @@ class StartScreen(Screen):
         fade_in_new.start(new_video)
 
         def fade_out_overlay(*_):
-            fade_out = Animation(opacity_level=0, duration=0.5)
-
-            def cleanup(*_):
-                if old_video:
-                    self.root.remove_widget(old_video)
-
-            fade_out.bind(on_complete=cleanup)
-            fade_out.start(self.fade_overlay)
+            Animation(opacity_level=0, duration=0.5).start(self.fade_overlay)
 
         fade_in_new.bind(on_complete=fade_out_overlay)
 
     def on_sequence_video_end(self, instance, value):
         if value == 'stop':
             print(f"[INFO] Intro video {self.video_index + 1} finished. Click to continue.")
-            fade_to_black = Animation(opacity_level=1, duration=0.5)
-            fade_to_black.start(self.fade_overlay)
-
-            show_text = Animation(opacity=1, duration=0.6)
-            show_text.start(self.keep_clicking_label)
+            Animation(opacity_level=1, duration=0.5).start(self.fade_overlay)
+            Animation(opacity=1, duration=0.6).start(self.keep_clicking_label)
 
     def play_loop_video(self):
         Window.unbind(on_mouse_down=self.on_click_next_video)
+
+        if self.video:
+            self.video.state = 'stop'
+            self.video.unload()
+            self.root.remove_widget(self.video)
+            self.video = None
+
         loop_local = os.path.join(os.path.dirname(__file__), "fixed m to nm.mp4")
         loop_backup = "/home/anastasiia/Downloads/fixed m to nm.mp4"
         loop_path = loop_local if os.path.exists(loop_local) else loop_backup
@@ -197,6 +205,8 @@ class StartScreen(Screen):
             state='play',
             options={'eos': 'loop'},
             allow_stretch=True,
+            keep_ratio=False,
+            volume=0,
             size_hint=(1, 1),
             pos_hint={"x": 0, "y": 0}
         )
@@ -204,24 +214,15 @@ class StartScreen(Screen):
         self.root.add_widget(self.loop_video, index=1)
         self.bring_buttons_to_front()
 
-        fade_in = Animation(opacity=1, duration=0.5)
-        fade_out = Animation(opacity_level=0, duration=0.5)
-
-        fade_in.start(self.loop_video)
-        fade_in.bind(on_complete=lambda *_: fade_out.start(self.fade_overlay))
-
+        Animation(opacity=1, duration=0.5).start(self.loop_video)
+        Animation(opacity_level=0, duration=0.5).start(self.fade_overlay)
         print("[INFO] Looping background video started.")
 
     def add_buttons(self, root):
-        self.panel_wrapper = Widget(size_hint=(None, None), size=(1000, 100),
-                                    pos=(root.width / 2 - 470, 10))
+        self.panel_wrapper = Widget(size_hint=(None, None), size=(1000, 100), pos=(root.width / 2 - 470, 10))
         with self.panel_wrapper.canvas:
             Color(0.0, 0.0, 0.0, 0.4)
-            self.button_panel = RoundedRectangle(
-                size=self.panel_wrapper.size,
-                pos=self.panel_wrapper.pos,
-                radius=[25]
-            )
+            self.button_panel = RoundedRectangle(size=self.panel_wrapper.size, pos=self.panel_wrapper.pos, radius=[25])
         root.bind(size=self.update_button_panel, pos=self.update_button_panel)
         root.add_widget(self.panel_wrapper)
 
@@ -245,15 +246,10 @@ class StartScreen(Screen):
         root.add_widget(self.tutorial_button)
 
     def bring_buttons_to_front(self):
-        for widget in [
-            self.panel_wrapper,
-            self.start_button,
-            self.tutorial_button,
-            self.keep_clicking_label  # this ensures it's always on top
-        ]:
+        for widget in [self.panel_wrapper, self.start_button, self.tutorial_button, self.keep_clicking_label]:
             if widget.parent:
                 self.root.remove_widget(widget)
-                self.root.add_widget(widget)
+                Clock.schedule_once(lambda dt, w=widget: self.root.add_widget(w), 0)
 
     def update_button_panel(self, *args):
         if hasattr(self, 'button_panel'):
@@ -262,11 +258,15 @@ class StartScreen(Screen):
             self.button_panel.size = (1000, 100)
             self.panel_wrapper.size = (1000, 100)
 
-    # touch screen part!!!
     def on_touch_down_global(self, window, touch):
         if hasattr(self, 'video') and self.video and self.video.state == 'stop':
             self.on_click_next_video()
         return False
 
     def start_game(self):
+        if self.loop_video:
+            self.loop_video.state = 'stop'
+            self.loop_video.unload()
+            self.root.remove_widget(self.loop_video)
+            self.loop_video = None
         self.manager.current = "GameScreen"

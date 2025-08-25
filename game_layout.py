@@ -290,6 +290,8 @@ class GameLayout(Widget):
         self.rect.pos = self.pos
         self.rect.size = self.size
         
+        self.canvas.ask_update()
+        
         self.molecule_radius = self.size[0] * self.molecule_radius_ratio * self.size_factor
         # Call the resize logic
         self.on_resize()
@@ -432,12 +434,15 @@ class GameLayout(Widget):
         self.apply_spring_force()
 
         self.frame_counter += 1
+        if self.frame_counter % 5 == 0:  # Only update bond lines every 5 frames
+            self.update_bond_lines()
         if self.frame_counter % 10 == 0:
                 visible = random.sample(self.molecules, min(len(self.molecules), 10))  # only update 10 molecules
                 for molecule in visible:
                     molecule.update_color_based_on_speed()
                     if self.forces_visible:
                         molecule.update_force_arrow()
+                        self.update_bond_lines()  # added this to ease frame calculation
 
 
         for i in range(len(self.molecules)):
@@ -475,7 +480,7 @@ class GameLayout(Widget):
         self.temperature_label.text = f"Temperature: {(temperature / len(self.molecules)) if len(self.molecules) else 0:.2f}"
         self.pressure_label.text = f"Pressure: {pressure:.2f}"
         # Update bond lines after molecule movement
-        self.update_bond_lines()
+        # self.update_bond_lines()
         # memMb=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024.0/1024.0
         # print ("%5.1f MByte" % (memMb))
         

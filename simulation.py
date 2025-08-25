@@ -29,6 +29,9 @@ from speedometer import Speedometer  # Import Speedometer
 from game_layout import GameLayout
 from performance_monitor import PerformanceMonitor
 from arduino_performance_graph import ArduinoGraph
+from kivy.clock import Clock 
+
+Clock.max_iteration = 1000
 
 
 class WindowManager(ScreenManager):
