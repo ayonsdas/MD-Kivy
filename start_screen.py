@@ -179,9 +179,26 @@ class StartScreen(Screen):
 
     def on_sequence_video_end(self, instance, value):
         if value == 'stop':
-            print(f"[INFO] Intro video {self.video_index + 1} finished. Click to continue.")
-            Animation(opacity_level=1, duration=0.5).start(self.fade_overlay)
-            Animation(opacity=1, duration=0.6).start(self.keep_clicking_label)
+            print(f"[INFO] Intro video {self.video_index + 1} finished.")
+            if self.video_index == len(self.video_paths) - 1:
+                # Calm transition: fade overlay up, swap, fade overlay down
+                try:
+                    self.keep_clicking_label.opacity = 0
+                except Exception:
+                    pass
+                fade_up = Animation(opacity_level=1, duration=0.25)
+
+                def _after_up(*_):
+                    # Swap to loop video ("fixed m to nm.mp4") then fade overlay down smoothly
+                    self.video_index += 1  # mark sequence complete
+                    self.play_loop_video()
+                    Animation(opacity_level=0, duration=0.8, t='out_quad').start(self.fade_overlay)
+
+                fade_up.bind(on_complete=_after_up)
+                fade_up.start(self.fade_overlay)
+            else:
+                Animation(opacity_level=1, duration=0.5).start(self.fade_overlay)
+                Animation(opacity=1, duration=0.6).start(self.keep_clicking_label)
 
     def play_loop_video(self):
         Window.unbind(on_mouse_down=self.on_click_next_video)
@@ -217,6 +234,8 @@ class StartScreen(Screen):
         Animation(opacity=1, duration=0.5).start(self.loop_video)
         Animation(opacity_level=0, duration=0.5).start(self.fade_overlay)
         print("[INFO] Looping background video started.")
+
+    # (idle fallback removed; restored previous behavior)
 
     def add_buttons(self, root):
         self.panel_wrapper = Widget(size_hint=(None, None), size=(1000, 100), pos=(root.width / 2 - 470, 10))
