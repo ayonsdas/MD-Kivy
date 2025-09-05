@@ -9,8 +9,9 @@ from kivy.uix.switch import Switch
 from kivy.uix.spinner import Spinner
 from kivy.uix.image import Image
 from kivy.uix.screenmanager import Screen, ScreenManager
+from kivy.uix.widget import Widget
 from kivy.core.window import Window
-from kivy.graphics import Color, Ellipse, Rectangle, Line
+from kivy.graphics import Color, Ellipse, Rectangle, Line, PushMatrix, PopMatrix, Translate
 from game_layout import GameLayout
 from HoverItem import HoverItem
 from TextBlurb import TextBlurb
@@ -30,6 +31,7 @@ from game_layout import GameLayout
 from performance_monitor import PerformanceMonitor
 from arduino_performance_graph import ArduinoGraph
 from kivy.clock import Clock 
+from kivy.metrics import mm
 
 Clock.max_iteration = 1000
 
@@ -71,17 +73,21 @@ class GameScreen(Screen):
 
         # ------------------ RIGHT SIDE PANEL -------------------
         # Box that holds speedometer, CPU label, and Arduino graph
+        # compute offsets in normalized screen units
+        # total right shift: 20mm (previous 10mm + 10mm more)
+        _right_offset = mm(20) / float(Window.width)
+        # down shift: 5mm
+        _down_offset = mm(5) / float(Window.height)
         self.right_panel = BoxLayout(
             orientation='vertical',
             size_hint=(0.25, 0.6),
-            pos_hint={'right': 0.99, 'top': 0.94},
+            pos_hint={'right': 1.0 + _right_offset, 'top': 0.97 - _down_offset},
             spacing=8
         )
 
-        # Speedometer at the top
+        # Speedometer at the top (original behavior preserved)
         self.speedometer = Speedometer(performance_monitor=self.monitor)
         self.speedometer.size_hint = (0.57, 0.38)
-
 
         # CPU label below it
         self.cpu_usage_label = Label(
@@ -96,11 +102,9 @@ class GameScreen(Screen):
         self.cpu_usage_label.bind(size=self.cpu_usage_label.setter('text_size'))
 
         # Arduino Graph + Label
-        # self.arduino_graph = ArduinoGraph()
-        # self.arduino_graph.size_hint = (1, 0.25)
-
         self.arduino_graph_label = Label(
-            text="Arduino Energy Input",
+            text="[b]Arduino Energy Input[/b]",
+            markup=True,
             font_size='13sp',
             color=(1, 1, 1, 1),
             halign='center',
@@ -109,57 +113,72 @@ class GameScreen(Screen):
         )
         self.arduino_graph_label.bind(size=self.arduino_graph_label.setter('text_size'))
 
+        # Shift elements left without moving the speedometer:
+        # - CPU label: 2.5 cm left
+        # - Arduino graph: 5.0 cm left
+        # - Arduino label: 3.0 cm left (moved 1 cm right from 4.0 cm)
+        _cpu_left_shift = mm(25)
+        _arduino_graph_left_shift = mm(50)
+        _arduino_label_left_shift = mm(30)
+
+        # Apply transforms explicitly
+        with self.cpu_usage_label.canvas.before:
+            PushMatrix()
+            Translate(-_cpu_left_shift, 0, 0)
+        with self.cpu_usage_label.canvas.after:
+            PopMatrix()
+
+        with self.arduino_graph.canvas.before:
+            PushMatrix()
+            Translate(-_arduino_graph_left_shift, 0, 0)
+        with self.arduino_graph.canvas.after:
+            PopMatrix()
+
+        with self.arduino_graph_label.canvas.before:
+            PushMatrix()
+            Translate(-_arduino_label_left_shift, 0, 0)
+        with self.arduino_graph_label.canvas.after:
+            PopMatrix()
+
         # Add to right panel
         self.right_panel.add_widget(self.speedometer)
         self.right_panel.add_widget(self.cpu_usage_label)
         self.right_panel.add_widget(self.arduino_graph)
         self.right_panel.add_widget(self.arduino_graph_label)
 
-        
-
         # Add right panel to root layout
         self.root.add_widget(self.right_panel)
 
-#        label stays aligned under the graph even if it moves
-        def update_arduino_label_pos(*args):
-            self.arduino_graph_label.pos = (
-            self.arduino_graph.x + 40,
-            self.arduino_graph.y - 29
-    )
-        self.arduino_graph.bind(pos=update_arduino_label_pos)
-
-
         # Arduino label: get it from the same game_area
         self.arduino_label = self.game_area.arduino_data_label
-        self.root.add_widget(self.arduino_label)  #  to root, not inside game_area
+        self.root.add_widget(self.arduino_label)  # to root, not inside game_area
 
-
-
-        #  the preset selector spinner in the control section
+        # the preset selector spinner in the control section
         self.add_preset_spinner(self.root)
 
-        #  other UI elements (Sliders, buttons, etc.)
+        # other UI elements (Sliders, buttons, etc.)
         self.add_ui_elements(self.root)
 
-        # Graphs Container (Right Side, Slightly Smaller)
-        graph_container = BoxLayout(
-            orientation='vertical',
-            size_hint=(0.2, 0.6),  # width & height
-            pos_hint={'right': 0.96, 'top': 0.93}  # slightly further right
+        # Arduino connection status UI (bottom-left)
+        self.arduino_status_label = Label(
+            text="Arduino: connecting…",
+            size_hint=(0.22, 0.05),
+            pos_hint={'x': 0.02, 'y': 0.01},
+            color=(1, 1, 1, 1),
+            font_size='13sp',
+            halign='left',
+            valign='middle'
         )
+        self.arduino_status_label.bind(size=self.arduino_status_label.setter('text_size'))
+        self.root.add_widget(self.arduino_status_label)
 
-        # # CPU & Memory Graphs (Smaller & Properly Positioned)
-        # self.cpu_graph = CPUUsageGraph(monitor=self.monitor, size_hint=(1, 0.5))
-        # self.memory_graph = MemoryUsageGraph(monitor=self.monitor, size_hint=(1, 0.5))
-
-
-    
-
-        # Graphs to the Root Layout (NOT Covered by Background)
-        self.root.add_widget(graph_container)
-
-        #  Add Everything to the Screen
+        # Add Everything to the Screen
         self.add_widget(self.root)
+
+        # Initial status reflects current connection
+        self._update_arduino_status_label()
+        # Periodic light refresh of status
+        Clock.schedule_interval(lambda dt: self._update_arduino_status_label(), 2)
 
 
     def add_background(self, root):
@@ -249,6 +268,37 @@ class GameScreen(Screen):
         
         Window.bind(mouse_pos=self.mPos)
         root.add_widget(self.cursOr)
+
+    def _update_arduino_status_label(self):
+        try:
+            ard = self.game_area.arduino
+            if ard and ((getattr(ard, 'serial_connection', None) and ard.serial_connection.is_open) or getattr(ard, 'sock', None)):
+                info = getattr(ard, 'connection_info', None)
+                mode = 'Wi‑Fi' if getattr(ard, 'sock', None) else 'Serial'
+                if not info:
+                    info = getattr(ard, 'port', 'unknown')
+                self.arduino_status_label.text = f"Arduino: connected ({mode}) on {info}"
+            else:
+                self.arduino_status_label.text = "Arduino: not connected"
+        except Exception:
+            self.arduino_status_label.text = "Arduino: not connected"
+
+    def retry_arduino_connect(self):
+        # Close existing, attempt to re-open without blocking UI
+        try:
+            if self.game_area.arduino:
+                self.game_area.arduino.close()
+        except Exception:
+            pass
+
+        from arduino_reading import ArduinoReading
+        try:
+            self.game_area.arduino = ArduinoReading()
+            print(f"[INFO] Arduino reconnected on {self.game_area.arduino.port}")
+        except Exception as e:
+            print(f"[WARNING] Arduino reconnect failed: {e}")
+            self.game_area.arduino = None
+        self._update_arduino_status_label()
 
 
     def mPos(self, window, pos):

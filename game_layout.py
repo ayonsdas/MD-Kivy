@@ -46,9 +46,12 @@ class GameLayout(Widget):
         super(GameLayout, self).__init__(**kwargs)
         # self.arduino = ArduinoReading('/dev/ttyUSB0')  # open serial once!!!! below connects twice and more
         try:
-            self.arduino = ArduinoReading('/dev/ttyUSB0')
+            # Respect env overrides and auto-detection logic inside ArduinoReading
+            self.arduino = ArduinoReading()
+            print(f"[INFO] Arduino serial opened on {self.arduino.port} @ {self.arduino.baud_rate}")
         except Exception as e:
-            print(f"[WARNING] Arduino not connected: {e}")
+            print(f"[WARNING] Arduino not connected or no permission: {e}")
+            print("         Hint: set ARDUINO_PORT=/dev/ttyACM0 and ensure you are in the 'dialout' group, then re-run.")
             self.arduino = None
 
 

@@ -10,9 +10,13 @@ class Speedometer(Widget):
     def __init__(self, performance_monitor, **kwargs):
         super().__init__(**kwargs)
         self.monitor = performance_monitor
-        self.size_hint = (None, None)  # we'll scale size manually
-        self.size = (200, 200)  # initial default
-        self.pos_hint = {'right': 0.99, 'top': 0.94}
+        # Allow parent layouts to size this widget via size_hint.
+        # We'll render a circular dial inside the allocated rect without forcing self.size.
+        self.size_hint = self.size_hint or (None, None)
+        if self.size_hint == (None, None):
+            # default standalone size when not managed by a layout
+            self.size = (200, 200)
+        self.pos_hint = getattr(self, 'pos_hint', {'right': 0.99, 'top': 0.94})
         self.current_angle = 135
 
         self.percent_label = Label(
@@ -24,13 +28,10 @@ class Speedometer(Widget):
         )
         self.add_widget(self.percent_label)
 
-        self.bind(size=self._make_circle, pos=self._make_circle)
         Clock.schedule_interval(self.update_speedometer, 0.02)
 
-    def _make_circle(self, *args):
-        # force width = height to make it circular
-        side = min(self.width, self.height)
-        self.size = (side, side)
+    # Do not mutate self.size when managed by a layout; instead draw within a square
+    # that fits inside the current bounding box in update_speedometer.
 
     def get_dynamic_color(self, percent):
         """Green → Yellow → Red based on percent."""
@@ -48,9 +49,13 @@ class Speedometer(Widget):
         target_angle = 135 + (cpu_percent * 270 / 100)
         self.current_angle += (target_angle - self.current_angle) * 0.1
 
-        radius = self.width / 2
-        cx = self.x + radius
-        cy = self.y + radius
+        # Draw in a centered square within the current widget rect
+        side = min(self.width, self.height)
+        radius = side / 2.0
+        cx = self.x + self.width / 2.0
+        cy = self.y + self.height / 2.0
+        square_x = cx - radius
+        square_y = cy - radius
         r, g, b = self.get_dynamic_color(cpu_percent)
 
         tick_outer = radius * 0.9
@@ -63,15 +68,15 @@ class Speedometer(Widget):
             pulse = 0.5 + 0.5 * math.sin(time.time() * 2)
             glow_alpha = 0.2 + (cpu_percent / 100) * 0.5 * pulse
             Color(r, g, b, glow_alpha)
-            Ellipse(pos=(self.x - 10, self.y - 10), size=(self.width + 20, self.height + 20))
+            Ellipse(pos=(square_x - 10, square_y - 10), size=(side + 20, side + 20))
 
             # Outer dial
             Color(0.1, 0.3, 0.6, 1)
-            Ellipse(pos=self.pos, size=self.size)
+            Ellipse(pos=(square_x, square_y), size=(side, side))
 
             # Inner black circle
             Color(0, 0, 0, 1)
-            Ellipse(pos=(self.x + 10, self.y + 10), size=(self.width - 20, self.height - 20))
+            Ellipse(pos=(square_x + 10, square_y + 10), size=(side - 20, side - 20))
 
             # Ticks and labels
             for i in range(11):
