@@ -69,7 +69,30 @@ class GameLayout(Widget):
         Clock.schedule_interval(self.monitor_performance, 1)
         set_global_monitor(self.performance_monitor) 
 
-    
+        # --- Smooth performance helpers (low-risk) ---
+        self.ui_update_every = 5           # update labels every 5 frames
+        self.arrow_update_every = 5        # update force arrows at most every 5 frames
+        self._arduino_log_accum = 0.0      # throttle arduino prints to ~1 Hz
+        self._sec_accum = 0.0              # generic per-frame time accumulator
+
+        # Gentle CPU governor: slow update interval and hide arrows when CPU is high
+        self._governor_state = 'normal'    # 'normal' | 'throttle'
+        self._governor_high_time = 0.0     # seconds above threshold
+        self._governor_low_time = 0.0      # seconds below threshold
+        self._governor_multiplier = 1.0    # 1.0 normal, >1.0 slows updates
+        self._forces_hidden_by_governor = False
+
+        # Track scheduling to apply governor without changing user speed semantics
+        self._speed_factor = 1.0
+        self._base_interval = 1 / 30.0
+        self._current_interval = self._base_interval
+
+        # Keyboard should be set up once
+        self._keyboard_initialized = False
+
+        # Schedule gentle governor checks
+        Clock.schedule_interval(self._governor_update, 0.5)
+
         self.bonds = {}  # Dictionary to store Line objects for each bond
         # print(self.molecule_radius)
         self.old_pos = self.pos[:]
@@ -85,6 +108,10 @@ class GameLayout(Widget):
         self.molecule_radius = self.size[0] * self.molecule_radius_ratio * self.size_factor # Radius of the molecule
         self.forces_visible = True
 
+        # Safe performance cutoff for Lennard-Jones interactions (standard practice)
+        self.enable_lj_cutoff = True
+        self.lj_cutoff_sigma = 2.5  # cutoff radius = 2.5 * sigma
+
         self.arduino_data_label = Label(
             text="Arduino X: 0.00\nArduino Y: 0.00\nArduino Z: 0.00\nGravity Scale: 0.00",
             size_hint=(0.2, 0.15),  # Take up 20% width and 15% height of parent
@@ -96,8 +123,10 @@ class GameLayout(Widget):
             valign='top'
         )
         self.arduino_data_label.bind(size=self.arduino_data_label.setter('text_size'))
-  
+
         # self.add_widget(self.arduino_data_label)
+
+    # Spatial hash config removed (reverted to ensure stability)
 
 
 # Work on this part to log CPU usage and Memory Usage
@@ -134,7 +163,9 @@ class GameLayout(Widget):
 
         # Schedule the update event
         self.update_event = None
-        self.setup_keyboard()
+        if not self._keyboard_initialized:
+            self.setup_keyboard()
+            self._keyboard_initialized = True
         
         Clock.schedule_interval(lambda dt: gc.collect(), 5)
         
@@ -361,7 +392,9 @@ class GameLayout(Widget):
         """Start the simulation update loop."""
         if not self.simulation_running:
             self.simulation_running = True
-            self.update_event = Clock.schedule_interval(self.update, 1 / 30.0)  # Default speed was 60 FPS
+            self._base_interval = 1 / 30.0
+            self._current_interval = self._base_interval * self._governor_multiplier
+            self.update_event = Clock.schedule_interval(self.update, self._current_interval)
 
     def stop_simulation(self):
         """Stop the simulation update loop."""
@@ -373,12 +406,20 @@ class GameLayout(Widget):
 
     def set_speed(self, speed_factor):
         """Adjust the simulation speed by setting a new interval."""
+        self._speed_factor = max(0.1, float(speed_factor))
+        self._base_interval = (1 / 30.0) / self._speed_factor
+        self._apply_update_interval()
+
+    def _apply_update_interval(self):
+        """Apply effective interval considering governor multiplier."""
+        effective = self._base_interval * self._governor_multiplier
         if self.update_event is not None:
-            self.update_event.cancel()
-        
-        # Schedule with the new interval based on the speed factor
-        new_interval = (1 / 30.0) / speed_factor  # Adjust interval according to speed factor <=== this is used for updatng simulation
-        self.update_event = Clock.schedule_interval(self.update, new_interval)
+            try:
+                self.update_event.cancel()
+            except Exception:
+                pass
+        self._current_interval = effective
+        self.update_event = Clock.schedule_interval(self.update, effective)
         
     def set_size(self, size_factor):
         """Adjust the simulation speed by setting a new interval."""
@@ -390,6 +431,7 @@ class GameLayout(Widget):
             
     def toggle_update_mode(self):
         self.use_verlet = not self.use_verlet
+
 
     # 
     def update(self, dt):   # update take data ==> send thsi to monitor for performance
@@ -411,23 +453,26 @@ class GameLayout(Widget):
 
             self.gravity = 9.8 * scale_factor   # shake effect
             self.arduino_data_label.text = (
-                    f"Arduino X: {x:.2f}\n"
-                    f"Arduino Y: {y:.2f}\n"
-                    f"Arduino Z: {z:.2f}\n"
-                    f"Gravity Scale: {scale_factor:.2f}"
-            )   
+                f"Arduino X: {x:.2f}\n"
+                f"Arduino Y: {y:.2f}\n"
+                f"Arduino Z: {z:.2f}\n"
+                f"Gravity Scale: {scale_factor:.2f}"
+            )
             if self.arduino_graph:
                 self.arduino_graph.feed_arduino(x, y, z)
 
             arduino_usage = min((accel_magnitude / 16384.0) * 100, 100)
 
-# Send it to the speedometer via the monitor
+            # Send it to the speedometer via the monitor
             self.performance_monitor.set_target_usage(arduino_usage)
 
-            print(f"Arduino Accel → ARDUINO X:{x}, ARDUINO Y:{y}, ARDUINOZ:{z}, Gravity scale: {scale_factor:.2f}")
-
+            # Throttle logging to ~1 Hz to avoid console flood
+            self._arduino_log_accum += dt
+            if self._arduino_log_accum >= 1.0:
+                print(f"Arduino Accel → ARDUINO X:{x}, ARDUINO Y:{y}, ARDUINOZ:{z}, Gravity scale: {scale_factor:.2f}")
+                self._arduino_log_accum = 0.0
         else:
-            scale_factor = 1 # if no change just keep this way
+            scale_factor = 1  # if no change just keep this way
 
         for molecule in self.molecules:
             molecule.reset_total_force()
@@ -440,30 +485,47 @@ class GameLayout(Widget):
         if self.frame_counter % 5 == 0:  # Only update bond lines every 5 frames
             self.update_bond_lines()
         if self.frame_counter % 10 == 0:
-                visible = random.sample(self.molecules, min(len(self.molecules), 10))  # only update 10 molecules
-                for molecule in visible:
-                    molecule.update_color_based_on_speed()
-                    if self.forces_visible:
-                        molecule.update_force_arrow()
-                        self.update_bond_lines()  # added this to ease frame calculation
+            visible = random.sample(self.molecules, min(len(self.molecules), 10))  # only update 10 molecules
+            for molecule in visible:
+                molecule.update_color_based_on_speed()
+                if self.forces_visible:
+                    molecule.update_force_arrow()
+            # Update bonds once after batch
+            self.update_bond_lines()
 
+
+        # Precompute LJ cutoff distance squared (in screen units) if enabled
+        if self.enable_lj_cutoff:
+            cutoff_dist = (self.lj_cutoff_sigma * self.sigma * self.scale)
+            cutoff2 = cutoff_dist * cutoff_dist
+        else:
+            cutoff2 = None
 
         for i in range(len(self.molecules)):
             molecule1 = self.molecules[i]
             molecule1.fix_radius(self.molecule_radius)
             for j in range(i + 1, len(self.molecules)):
                 molecule2 = self.molecules[j]
-                if molecule1.collide_widget(molecule2):
+                # Cheap broad-phase: skip expensive checks when boxes don't overlap
+                dx = molecule2.center_x - molecule1.center_x
+                dy = molecule2.center_y - molecule1.center_y
+                sum_r = (molecule1.width + molecule2.width) * 0.5
+                if abs(dx) <= sum_r and abs(dy) <= sum_r and molecule1.collide_widget(molecule2):
                     molecule1.resolve_collision(molecule2)
                     molecule1.update_color_based_on_speed()
                     molecule2.update_color_based_on_speed()
-                if self.intermolecular_forces:  # consider this one for forces update within cpu
+                if self.intermolecular_forces:
+                    # Apply distance cutoff for LJ to skip far pairs
+                    if cutoff2 is not None:
+                        r2 = dx*dx + dy*dy
+                        if r2 > cutoff2:
+                            continue
                     force = molecule1.lennard_jones_force(molecule2, self.epsilon, self.sigma, self.scale)
-                    # print(force, i, j)
                     molecule1.add_force(force)
                     molecule2.add_force(-force)
-                    
-            molecule1.update_force_arrow()   # in here check !!!
+            # Update per-molecule force arrows less frequently
+            if self.forces_visible and (self.frame_counter % self.arrow_update_every == 0):
+                molecule1.update_force_arrow()
             if self.use_verlet:
                 molecule1.speed_cap = 500
                 molecule1.move(self.delta)
@@ -479,9 +541,11 @@ class GameLayout(Widget):
 
             pressure += abs(molecule1.total_velocity.x) + abs(molecule1.total_velocity.y)  # Simplified pressure calculation
 
-        self.total_energy_label.text = f"Total Energy: {total_energy:.2f}"  # can change by arduino
-        self.temperature_label.text = f"Temperature: {(temperature / len(self.molecules)) if len(self.molecules) else 0:.2f}"
-        self.pressure_label.text = f"Pressure: {pressure:.2f}"
+        # Throttle stat label updates to reduce UI work
+        if self.frame_counter % self.ui_update_every == 0:
+            self.total_energy_label.text = f"Total Energy: {total_energy:.2f}"  # can change by arduino
+            self.temperature_label.text = f"Temperature: {(temperature / len(self.molecules)) if len(self.molecules) else 0:.2f}"
+            self.pressure_label.text = f"Pressure: {pressure:.2f}"
         # Update bond lines after molecule movement
         # self.update_bond_lines()
         # memMb=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024.0/1024.0
@@ -505,6 +569,8 @@ class GameLayout(Widget):
             speed=self.speed_slider.value if self.speed_slider else 1.0,
             forces_on=self.intermolecular_forces
         )
+        # Accumulate dt for any time-based features
+        self._sec_accum += dt
 
 
         # self.performance_monitor.trigger_boost(15)  # Boost per update
@@ -558,6 +624,40 @@ class GameLayout(Widget):
             molecule.forces_visible = self.forces_visible
             molecule.update_force_arrow()
 
+    # --- Gentle CPU governor ---
+    def _governor_update(self, dt):
+        """Adjust update rate and arrow visibility based on CPU usage."""
+        try:
+            cpu = self.performance_monitor.get_cpu_usage()
+        except Exception:
+            return
+        threshold = 90.0
+        if cpu >= threshold:
+            self._governor_high_time += dt
+            self._governor_low_time = 0.0
+        else:
+            self._governor_low_time += dt
+            self._governor_high_time = 0.0
+
+        # Enter throttle after 2 seconds high CPU
+        if self._governor_state == 'normal' and self._governor_high_time >= 2.0:
+            self._governor_state = 'throttle'
+            self._governor_multiplier = 1.25
+            # Hide arrows while throttling (remember if we changed it)
+            if self.forces_visible:
+                self._forces_hidden_by_governor = True
+                self.forces_visible = False
+            self._apply_update_interval()
+
+        # Exit throttle after 5 seconds low CPU
+        if self._governor_state == 'throttle' and self._governor_low_time >= 5.0:
+            self._governor_state = 'normal'
+            self._governor_multiplier = 1.0
+            if self._forces_hidden_by_governor:
+                self.forces_visible = True
+                self._forces_hidden_by_governor = False
+            self._apply_update_interval()
+
     def generate_solid(self):
         """Generate a solid-like arrangement of molecules."""
         # self.performance_monitor.trigger_boost(40.0)   # added to help it
@@ -577,7 +677,11 @@ class GameLayout(Widget):
 
     def generate_liquid(self):
         """Generate a liquid-like arrangement of molecules."""
-        self.performance_monitor.trigger_boost(40.0)
+        try:
+            if hasattr(self.performance_monitor, 'trigger_boost'):
+                self.performance_monitor.trigger_boost(40.0)
+        except Exception:
+            print("[Slider boost error] trigger_boost unavailable")
 
         self.clear_molecules()
         for _ in range(50):  # Create 50 molecules
@@ -589,7 +693,11 @@ class GameLayout(Widget):
 
     def generate_gas(self):
         """Generate a gas-like arrangement of molecules."""
-        self.performance_monitor.trigger_boost(40.0)
+        try:
+            if hasattr(self.performance_monitor, 'trigger_boost'):
+                self.performance_monitor.trigger_boost(40.0)
+        except Exception:
+            print("[Slider boost error] trigger_boost unavailable")
 
         self.clear_molecules()
         for _ in range(15):  # Create 30 molecules

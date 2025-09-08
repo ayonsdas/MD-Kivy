@@ -40,6 +40,7 @@ class StartScreen(Screen):
         self.fade_overlay = FadeOverlay(size_hint=(1, 1), pos_hint={"x": 0, "y": 0})
         self.root.add_widget(self.fade_overlay, index=100)
 
+
         self.keep_clicking_label = Label(
             text="KEEP CLICKING",
             font_size="64sp",
@@ -59,6 +60,9 @@ class StartScreen(Screen):
         self.add_video_player(self.root)
 
         self.add_widget(self.root)
+
+        # Track whether we bound the global touch handler
+        self._touch_bound = True
 
     def update_label_text_size(self, instance, value):
         instance.text_size = value
@@ -110,6 +114,11 @@ class StartScreen(Screen):
             self.video.state = 'stop'
             self.video.unload()
             self.root.remove_widget(self.video)
+        # Ensure label starts hidden for a fresh video
+        try:
+            self.keep_clicking_label.opacity = 0
+        except Exception:
+            pass
 
         video_path = self.video_paths[self.video_index]
 
@@ -136,11 +145,15 @@ class StartScreen(Screen):
             self.video_index += 1
             old_video = self.video
 
-            Animation(opacity=0, duration=0.3).start(self.keep_clicking_label)
+            # Smooth: first fade label out, then raise overlay to black
+            def _start_overlay(*_):
+                fade_black = Animation(opacity_level=1, duration=0.6, t='out_quad')
+                fade_black.bind(on_complete=lambda *_: self.transition_video(old_video))
+                fade_black.start(self.fade_overlay)
 
-            fade_black = Animation(opacity_level=1, duration=0.4)
-            fade_black.bind(on_complete=lambda *_: self.transition_video(old_video))
-            fade_black.start(self.fade_overlay)
+            label_out = Animation(opacity=0, duration=0.4, t='out_quad')
+            label_out.bind(on_complete=_start_overlay)
+            label_out.start(self.keep_clicking_label)
 
     def transition_video(self, old_video):
         if self.video_index >= len(self.video_paths):
@@ -169,11 +182,12 @@ class StartScreen(Screen):
         self.video = new_video
         self.bring_buttons_to_front()
 
-        fade_in_new = Animation(opacity=1, duration=0.4)
+        # Smoothly fade in the new video
+        fade_in_new = Animation(opacity=1, duration=0.6, t='out_quad')
         fade_in_new.start(new_video)
 
         def fade_out_overlay(*_):
-            Animation(opacity_level=0, duration=0.5).start(self.fade_overlay)
+            Animation(opacity_level=0, duration=0.6, t='out_quad').start(self.fade_overlay)
 
         fade_in_new.bind(on_complete=fade_out_overlay)
 
@@ -197,6 +211,7 @@ class StartScreen(Screen):
                 fade_up.bind(on_complete=_after_up)
                 fade_up.start(self.fade_overlay)
             else:
+                # Fade to black; show the label prompting to click next
                 Animation(opacity_level=1, duration=0.5).start(self.fade_overlay)
                 Animation(opacity=1, duration=0.6).start(self.keep_clicking_label)
 
@@ -208,6 +223,12 @@ class StartScreen(Screen):
             self.video.unload()
             self.root.remove_widget(self.video)
             self.video = None
+
+        # Ensure label hidden when loop starts
+        try:
+            self.keep_clicking_label.opacity = 0
+        except Exception:
+            pass
 
         loop_local = os.path.join(os.path.dirname(__file__), "fixed m to nm.mp4")
         loop_backup = "/home/anastasiia/Downloads/fixed m to nm.mp4"
@@ -283,9 +304,74 @@ class StartScreen(Screen):
         return False
 
     def start_game(self):
-        if self.loop_video:
-            self.loop_video.state = 'stop'
-            self.loop_video.unload()
-            self.root.remove_widget(self.loop_video)
+        # Stop any playing video before leaving to avoid background decode
+        if getattr(self, 'video', None):
+            try:
+                self.video.state = 'stop'
+                self.video.unload()
+                self.root.remove_widget(self.video)
+            except Exception:
+                pass
+            self.video = None
+        if getattr(self, 'loop_video', None):
+            try:
+                self.loop_video.state = 'stop'
+                self.loop_video.unload()
+                self.root.remove_widget(self.loop_video)
+            except Exception:
+                pass
             self.loop_video = None
+        # Unbind global touch while in game to prevent extra work
+        if self._touch_bound:
+            try:
+                Window.unbind(on_touch_down=self.on_touch_down_global)
+            except Exception:
+                pass
+            self._touch_bound = False
         self.manager.current = "GameScreen"
+
+    # Ensure videos are paused/stopped when leaving this screen, and resume on return
+    def on_pre_leave(self, *args):
+        # Stop and unload any active videos to free CPU/GPU
+        for attr in ('video', 'loop_video'):
+            vid = getattr(self, attr, None)
+            if vid:
+                try:
+                    vid.state = 'stop'
+                    vid.unload()
+                    if vid.parent is self.root:
+                        self.root.remove_widget(vid)
+                except Exception:
+                    pass
+                setattr(self, attr, None)
+        # Unbind global touch to avoid callbacks while in other screens
+        if self._touch_bound:
+            try:
+                Window.unbind(on_touch_down=self.on_touch_down_global)
+            except Exception:
+                pass
+            self._touch_bound = False
+
+    def on_pre_enter(self, *args):
+        # Rebind touch if needed
+        if not self._touch_bound:
+            try:
+                Window.bind(on_touch_down=self.on_touch_down_global)
+                self._touch_bound = True
+            except Exception:
+                pass
+        # If intro finished, show loop; otherwise resume intros from current index
+        try:
+            if hasattr(self, 'video_paths') and hasattr(self, 'video_index'):
+                if self.video_index >= len(self.video_paths):
+                    self.play_loop_video()
+                else:
+                    self.play_intro_video()
+            else:
+                # First-time or missing init: re-add video player
+                self.add_video_player(self.root)
+        except Exception:
+            # Fail-safe: keep UI responsive even if video fails
+            pass
+
+    # (no delayed label timer; label shows after each intro ends)
