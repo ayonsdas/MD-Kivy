@@ -78,21 +78,27 @@ class StartScreen(Screen):
         self.ui_rect.size = instance.size
 
     def add_video_player(self, root):
-        self.video_paths = [
-            os.path.join(os.path.dirname(__file__), "m_to_nm title.mp4"),
-            os.path.join(os.path.dirname(__file__), "m_to_nm_julian.mp4"),
-            os.path.join(os.path.dirname(__file__), "m_to_nm_remote.mp4"),
-            os.path.join(os.path.dirname(__file__), "m_to_nm_battery_outer.mp4"),
-            os.path.join(os.path.dirname(__file__), "m_to_nm_battery_separator.mp4"),
-            os.path.join(os.path.dirname(__file__), "m_to_nm_ions_still.mp4"),
-            os.path.join(os.path.dirname(__file__), "m_to_nm_ions_moving.mp4")
-        ]
 
-        self.video_paths = [
-            p if os.path.exists(p) else f"/home/anastasiia/Downloads/{os.path.basename(p)}"
-            for p in self.video_paths
+        # Windows-friendly: check local folder, then Downloads
+        local_dir = os.path.dirname(__file__)
+        downloads_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
+        video_filenames = [
+            "m_to_nm title.mp4",
+            "m_to_nm_julian.mp4",
+            "m_to_nm_remote.mp4",
+            "m_to_nm_battery_outer.mp4",
+            "m_to_nm_battery_separator.mp4",
+            "m_to_nm_ions_still.mp4",
+            "m_to_nm_ions_moving.mp4"
         ]
-        self.video_paths = [p for p in self.video_paths if os.path.exists(p)]
+        self.video_paths = []
+        for fname in video_filenames:
+            local_path = os.path.join(local_dir, fname)
+            downloads_path = os.path.join(downloads_dir, fname)
+            if os.path.exists(local_path):
+                self.video_paths.append(local_path)
+            elif os.path.exists(downloads_path):
+                self.video_paths.append(downloads_path)
 
         if not self.video_paths:
             print("[ERROR] No intro videos found.")
@@ -230,12 +236,19 @@ class StartScreen(Screen):
         except Exception:
             pass
 
-        loop_local = os.path.join(os.path.dirname(__file__), "fixed m to nm.mp4")
-        loop_backup = "/home/anastasiia/Downloads/fixed m to nm.mp4"
-        loop_path = loop_local if os.path.exists(loop_local) else loop_backup
 
-        if not os.path.exists(loop_path):
-            print(f"[ERROR] Loop video not found: {loop_path}")
+
+        # Ensure local_dir and downloads_dir are defined here as well
+        local_dir = os.path.dirname(__file__)
+        downloads_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
+        loop_local = os.path.join(local_dir, "fixed m to nm.mp4")
+        loop_downloads = os.path.join(downloads_dir, "fixed m to nm.mp4")
+        if os.path.exists(loop_local):
+            loop_path = loop_local
+        elif os.path.exists(loop_downloads):
+            loop_path = loop_downloads
+        else:
+            print(f"[ERROR] Loop video not found in local or Downloads folder.")
             return
 
         self.loop_video = Video(
