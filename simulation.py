@@ -118,7 +118,7 @@ class GameScreen(Screen):
         # - Arduino graph: 5.0 cm left
         # - Arduino label: 3.0 cm left (moved 1 cm right from 4.0 cm)
         _cpu_left_shift = mm(25)
-        _arduino_graph_left_shift = mm(50)
+        _arduino_graph_left_shift = mm(45)
         _arduino_label_left_shift = mm(30)
 
         # Apply transforms explicitly
@@ -451,6 +451,19 @@ class GameScreen(Screen):
             self.see_forces_button.defaultSource="Graphics/Hide-Forces.png"
             self.see_forces_button.source = self.see_forces_button.hoverSource if self.see_forces_button.use else self.see_forces_button.defaultSource
         self.game_area.toggle_forces_visible()
+
+    # toggle function that could be used for an update of the keys | most recent update for testing 
+    # LAUNCH FROM THE TERMINAL
+    # def toggle_combine(self):
+        
+    #     # test an update here
+    #     self.start_stop_button.hover.hoverSource="graphics/Start_Highlight.png"
+    #     self.start
+    #     self.start_stop_button.source
+    #     # toggle combine mode stuff
+    #     self.uase._verlet = not self.use
+
+        return self.switch.start_stop_button.hoverSource if self.add_background else self.start_stop_button
 
     def toggle_simulation(self):
         """Toggle the simulation state."""

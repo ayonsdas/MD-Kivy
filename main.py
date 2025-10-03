@@ -1,8 +1,14 @@
 from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager, Screen
 from simulation import GameScreen
-from start_screen import StartScreen
+# from start_screen import StartScreen
+from start_screen_fixed import StartScreen
 
+
+
+# KEEP THIS ONE HERE
+# ANOTHER BRANCH WITH JUST ONE VIDEO SHOULD BE FINE 
+# 
 
 # make it adjustable to differnet size screens
 class WindowManager(ScreenManager):
