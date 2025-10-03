@@ -95,7 +95,7 @@ class StartScreen(Screen):
         ]
         
         video_filenames = [
-            "m_to_nm title.mp4",
+            "m_to_nm_title.mp4",
             "m_to_nm_julian.mp4",
             "m_to_nm_remote.mp4",
             "m_to_nm_battery_outer.mp4",
