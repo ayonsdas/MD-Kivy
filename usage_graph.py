@@ -24,16 +24,31 @@ class CPUUsageGraph(BoxLayout):
             xmax=60,
             ymin=0,
             ymax=100,
-            border_color=[1, 1, 1, 1],
-            tick_color=[0.7, 0.7, 0.7, 1],
-            label_options={'color': [1, 1, 1, 1], 'bold': True}
+            border_color=[0.3, 1, 0.3, 1],  # Green border to match theme
+            tick_color=[0.5, 0.8, 0.5, 1],  # Green ticks
+            label_options={'color': [0.7, 1, 0.7, 1], 'bold': True}  # Green labels
         )
 
         # the Y-axis to use integer labels
         self.graph.y_label_func = integer_formatter
 
-        self.plot = MeshLinePlot(color=[1, 0, 0, 1])
+        # Add glow layers behind the main plot for a glowing effect
+        # Outer glow (widest, most transparent)
+        self.glow_outer = MeshLinePlot(color=[0.2, 0.8, 0.2, 0.15])
+        self.graph.add_plot(self.glow_outer)
+        
+        # Middle glow
+        self.glow_middle = MeshLinePlot(color=[0.3, 0.9, 0.3, 0.25])
+        self.graph.add_plot(self.glow_middle)
+        
+        # Inner glow
+        self.glow_inner = MeshLinePlot(color=[0.4, 1, 0.4, 0.4])
+        self.graph.add_plot(self.glow_inner)
+        
+        # Main bright line on top
+        self.plot = MeshLinePlot(color=[0.5, 1, 0.5, 1])
         self.graph.add_plot(self.plot)
+        
         self.add_widget(self.graph)
 
         self.cpu_data = []
@@ -57,8 +72,13 @@ class CPUUsageGraph(BoxLayout):
         if len(self.cpu_data) > 120:
             self.cpu_data.pop(0)
 
-        # Updating the plot
-        self.plot.points = [(i, val) for i, val in enumerate(self.cpu_data)]
+        # Updating the main plot and glow layers
+        points = [(i, val) for i, val in enumerate(self.cpu_data)]
+        self.plot.points = points
+        # Update glow layers with same points for layered effect
+        self.glow_outer.points = points
+        self.glow_middle.points = points
+        self.glow_inner.points = points
 
         #the Y-axis with buffer
         ymin = max(0, min(self.cpu_data) - 5)

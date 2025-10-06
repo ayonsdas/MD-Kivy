@@ -32,24 +32,48 @@ class PerformanceMonitor:
         # Clip to 0-100
         self._target_usage = min(max(value, 0), 100)
 
-    def update_simulation_metrics(self, molecule_count, gravity, epsilon, speed, forces_on):
+    def update_simulation_metrics(self, molecule_count, gravity, epsilon, speed, forces_on, 
+                                  arduino_activity=0.0, total_energy=0.0):
+        """
+        Calculate speedometer value based on simulation complexity and Arduino input.
+        Represents computational load and system activity.
+        """
         if molecule_count == 0:
             self.set_target_usage(0)
             return
 
-        force_multiplier = 2 if forces_on else 0.3
-
+        # Base computational load from physics calculations
+        force_multiplier = 2.0 if forces_on else 0.3  # Forces = 2x more calculations
+        
+        # Molecule complexity (more molecules = more collision checks, O(n²))
         molecule_score = (molecule_count ** 1.2) * 0.5
-        gravity_score = gravity * 3
-        epsilon_score = epsilon * 2
-        speed_score = speed * 8
-
-        total_score = (molecule_score + gravity_score + epsilon_score + speed_score) * force_multiplier
-
+        
+        # Physics parameters affect calculation complexity
+        gravity_score = gravity * 2
+        epsilon_score = epsilon * 1.5
+        speed_score = speed * 5
+        
+        # Energy contribution (higher energy = more active system = more work)
+        # Normalize energy to 0-20 range (assuming typical total_energy 0-1000)
+        energy_score = min(total_energy / 50.0, 20)
+        
+        # Arduino adds processing overhead (reading sensor, updating display)
+        # Scale: 0-30 based on Arduino activity
+        arduino_score = arduino_activity * 0.3
+        
+        # Combine all factors
+        simulation_load = (molecule_score + gravity_score + epsilon_score + 
+                          speed_score + energy_score) * force_multiplier
+        
+        # Arduino is additive (external processing load)
+        total_score = simulation_load + arduino_score
+        
         self.set_target_usage(total_score)
-
-        # debug:
-        print(f"[UPDATE] Molecules: {molecule_count}, Target set to: {self._target_usage:.1f}")
+        
+        # Debug logging
+        if molecule_count > 0:
+            print(f"[SPEEDOMETER] Molecules:{molecule_count}, Energy:{total_energy:.1f}, "
+                  f"Arduino:{arduino_activity:.1f}, Target:{self._target_usage:.1f}%")
 
 
 # global access

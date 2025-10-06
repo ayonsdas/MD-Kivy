@@ -74,6 +74,7 @@ class GameLayout(Widget):
         self.arrow_update_every = 5        # update force arrows at most every 5 frames
         self._arduino_log_accum = 0.0      # throttle arduino prints to ~1 Hz
         self._sec_accum = 0.0              # generic per-frame time accumulator
+        self.arduino_activity = 0.0        # Arduino accelerometer activity (0-100)
 
         # Gentle CPU governor: slow update interval and hide arrows when CPU is high
         self._governor_state = 'normal'    # 'normal' | 'throttle'
@@ -437,42 +438,46 @@ class GameLayout(Widget):
     def update(self, dt):   # update take data ==> send thsi to monitor for performance
         """
         Update molecule positions, handle collisions, and update bonds.
+        Arduino integration affects: gravity, kinetic energy, temperature, and pressure.
         """
         total_energy = 0
-        # ADD HERE ==> ARDUNO READING this is its initilization ==> added in init method above
-        temperature = 0  # added to arduio when shaking + strong amount of shaking scale and small amountof shaking scale
+        temperature = 0
         pressure = 0
 
-        # getting data from arduino here!!!
-        # arduino_data = self.arduino.get_xyz()
+        # Get Arduino accelerometer data and calculate scale factor
         arduino_data = self.arduino.get_xyz() if self.arduino else None
         if arduino_data:
             x, y, z = arduino_data
             accel_magnitude = (x**2 + y**2 + z**2) ** 0.5
-            scale_factor = accel_magnitude / 16384.0  # MPU6050 normal gravity scale  ?? review
+            # MPU6050 at rest reads ~16384 per axis at 1g
+            # Scale factor: 1.0 = normal gravity, >1.0 = shaking/movement
+            scale_factor = max(accel_magnitude / 16384.0, 0.1)  # Minimum 0.1 to avoid zero
 
-            self.gravity = 9.8 * scale_factor   # shake effect
+            # Update gravity based on Arduino acceleration
+            self.gravity = 9.8 * scale_factor
+            
             self.arduino_data_label.text = (
                 f"Arduino X: {x:.2f}\n"
                 f"Arduino Y: {y:.2f}\n"
                 f"Arduino Z: {z:.2f}\n"
                 f"Gravity Scale: {scale_factor:.2f}"
             )
+            
             if self.arduino_graph:
                 self.arduino_graph.feed_arduino(x, y, z)
 
-            arduino_usage = min((accel_magnitude / 16384.0) * 100, 100)
-
-            # Send it to the speedometer via the monitor
-            self.performance_monitor.set_target_usage(arduino_usage)
+            # Store Arduino activity for later use in speedometer calculation
+            # Don't directly set target here - let update_simulation_metrics combine it
+            self.arduino_activity = min((accel_magnitude / 16384.0) * 100, 100)
 
             # Throttle logging to ~1 Hz to avoid console flood
             self._arduino_log_accum += dt
             if self._arduino_log_accum >= 1.0:
-                print(f"Arduino Accel → ARDUINO X:{x}, ARDUINO Y:{y}, ARDUINOZ:{z}, Gravity scale: {scale_factor:.2f}")
+                print(f"Arduino → X:{x:.2f}, Y:{y:.2f}, Z:{z:.2f}, Scale:{scale_factor:.2f}")
                 self._arduino_log_accum = 0.0
         else:
-            scale_factor = 1  # if no change just keep this way
+            # No Arduino data - use baseline values
+            scale_factor = 1.0
 
         for molecule in self.molecules:
             molecule.reset_total_force()
@@ -533,18 +538,42 @@ class GameLayout(Widget):
                 molecule1.speed_cap = 8
                 molecule1.move_nonVerlet()
 
-            # Calculate kinetic energy ==> send this 
-            kinetic_energy = 0.5 * (molecule1.total_velocity.length2()) * scale_factor
-            total_energy += kinetic_energy   # impact  here
-            temperature += kinetic_energy  # + scale factor of arduion Temperature proportional to kinetic energy
-            #### Here to ADD this is where the scale factor supposed to be 
+            # Physics calculations with Arduino scale factor applied
+            # Convert screen-space velocities to normalized physics units
+            # Typical velocity range: 0-500 pixels/frame → normalize to 0-10 units
+            velocity_magnitude = molecule1.total_velocity.length()
+            normalized_velocity = velocity_magnitude / 50.0  # Scale down by 50x
+            
+            # Kinetic Energy: KE = 0.5 * m * v^2 (mass assumed = 1)
+            kinetic_energy = 0.5 * (normalized_velocity ** 2)
+            
+            # Total Energy: includes kinetic energy amplified by Arduino movement
+            # Arduino shaking adds energy (simulates external heating/vibration)
+            total_energy += kinetic_energy * scale_factor
+            
+            # Temperature: proportional to average kinetic energy per molecule
+            # In physics: T ∝ <KE>, higher values = more molecular motion
+            temperature += kinetic_energy * scale_factor
+            
+            # Pressure: momentum transfers with walls (velocity × mass)
+            # Simplified as sum of velocity components, normalized
+            momentum = (abs(molecule1.total_velocity.x) + abs(molecule1.total_velocity.y)) / 50.0
+            pressure += momentum * scale_factor
 
-            pressure += abs(molecule1.total_velocity.x) + abs(molecule1.total_velocity.y)  # Simplified pressure calculation
-
-        # Throttle stat label updates to reduce UI work
+        # Update labels with calculated, realistic values
+        num_molecules = len(self.molecules) if len(self.molecules) > 0 else 1
+        
         if self.frame_counter % self.ui_update_every == 0:
-            self.total_energy_label.text = f"Total Energy: {total_energy:.2f}"  # can change by arduino
-            self.temperature_label.text = f"Temperature: {(temperature / len(self.molecules)) if len(self.molecules) else 0:.2f}"
+            # Total Energy: arbitrary units (AU), realistic scale 0-1000
+            self.total_energy_label.text = f"Total Energy: {total_energy:.2f}"
+            
+            # Temperature: Kelvin-like units, realistic molecular scale
+            # Typical range: 0-500K depending on molecular motion
+            avg_temperature = temperature / num_molecules
+            self.temperature_label.text = f"Temperature: {avg_temperature:.2f}"
+            
+            # Pressure: arbitrary units (AU), represents wall collisions
+            # Higher values = more frequent/forceful collisions
             self.pressure_label.text = f"Pressure: {pressure:.2f}"
         # Update bond lines after molecule movement
         # self.update_bond_lines()
@@ -562,12 +591,15 @@ class GameLayout(Widget):
         # current_memory = process.memory_info().rss  # In bytes
         # print(f"Current memory usage: {current_memory / (1024 * 1024)} MB")
 
+        # Update speedometer with comprehensive metrics including Arduino and energy
         self.performance_monitor.update_simulation_metrics(
             molecule_count=len(self.molecules),
             gravity=self.gravity,
             epsilon=self.epsilon,
             speed=self.speed_slider.value if self.speed_slider else 1.0,
-            forces_on=self.intermolecular_forces
+            forces_on=self.intermolecular_forces,
+            arduino_activity=self.arduino_activity,
+            total_energy=total_energy
         )
         # Accumulate dt for any time-based features
         self._sec_accum += dt

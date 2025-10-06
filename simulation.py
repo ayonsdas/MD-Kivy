@@ -115,10 +115,10 @@ class GameScreen(Screen):
 
         # Shift elements left without moving the speedometer:
         # - CPU label: 2.5 cm left
-        # - Arduino graph: 5.0 cm left
-        # - Arduino label: 3.0 cm left (moved 1 cm right from 4.0 cm)
+        # - Arduino graph: 5.0 cm left (moved 0.5 cm more left)
+        # - Arduino label: 3.0 cm left (stays in place)
         _cpu_left_shift = mm(25)
-        _arduino_graph_left_shift = mm(45)
+        _arduino_graph_left_shift = mm(50)  # 5.0 cm = 50 mm
         _arduino_label_left_shift = mm(30)
 
         # Apply transforms explicitly
@@ -160,17 +160,43 @@ class GameScreen(Screen):
         self.add_ui_elements(self.root)
 
         # Arduino connection status UI (bottom-left)
+        # Arduino status with glowing text (no background box)
+        self.arduino_status_container = FloatLayout(
+            size_hint=(0.15, 0.035),
+            pos_hint={'x': 0.005, 'y': 0.005}
+        )
+        
+        # Status indicator dot with outline for glow effect
+        self.arduino_indicator = Label(
+            text="●",
+            size_hint=(0.1, 1),
+            pos_hint={'x': 0, 'center_y': 0.5},
+            color=(1, 0.3, 0.3, 1),  # Red for disconnected
+            font_size='16sp',
+            halign='center',
+            valign='middle',
+            outline_width=2,
+            outline_color=(1, 0.3, 0.3, 0.5)  # Glow effect
+        )
+        self.arduino_status_container.add_widget(self.arduino_indicator)
+        
+        # Status text with outline for glow effect
         self.arduino_status_label = Label(
             text="Arduino: connecting…",
-            size_hint=(0.22, 0.05),
-            pos_hint={'x': 0.02, 'y': 0.01},
-            color=(1, 1, 1, 1),
-            font_size='13sp',
+            size_hint=(0.9, 1),
+            pos_hint={'x': 0.1, 'center_y': 0.5},
+            color=(0.9, 0.9, 0.9, 1),
+            font_size='11sp',
             halign='left',
-            valign='middle'
+            valign='middle',
+            bold=True,
+            outline_width=1,
+            outline_color=(0.5, 0.5, 0.5, 0.3)  # Subtle glow
         )
         self.arduino_status_label.bind(size=self.arduino_status_label.setter('text_size'))
-        self.root.add_widget(self.arduino_status_label)
+        self.arduino_status_container.add_widget(self.arduino_status_label)
+        
+        self.root.add_widget(self.arduino_status_container)
 
         # Add Everything to the Screen
         self.add_widget(self.root)
@@ -197,14 +223,13 @@ class GameScreen(Screen):
         """Add the preset spinner to the bottom control section."""
         self.spinner_row = BoxLayout(orientation='horizontal', size_hint=(0.4, None), height=40, pos_hint={'center_x': 0.3, 'y': 0.085})
 
-        # Label for the preset spinner
+        # Label for the preset spinner - REMOVED (redundant with new Presets button)
         # preset_label = Label(text="Presets:", size_hint=(0.4, 1, size_hint=(None, None)), font_size=14)
-        self.preset_label = HoverItem(size_hint=(1, 1), 
-                                      hoverSource="Graphics/Presets.png", 
-                                      defaultSource="Graphics/Presets.png", 
-                                      function=lambda x : None)
-        
-        self.spinner_row.add_widget(self.preset_label)
+        # self.preset_label = HoverItem(size_hint=(1, 1), 
+        #                               hoverSource="Graphics/Presets.png", 
+        #                               defaultSource="Graphics/Presets.png", 
+        #                               function=lambda x : None)
+        # self.spinner_row.add_widget(self.preset_label)
 
         # Spinner for presets
         # preset_spinner = Spinner(
@@ -239,9 +264,11 @@ class GameScreen(Screen):
 
     def add_ui_elements(self, root):
         """Add sliders, switches, and other UI elements."""
-        ui_panel = self.create_sliders()
+        self.ui_panel = self.create_sliders()
+        self.ui_panel.opacity = 0  # Hidden by default
+        self.ui_panel_visible = False  # Track visibility state
         bottom_row = self.create_bottom_controls()
-        root.add_widget(ui_panel)
+        root.add_widget(self.ui_panel)
         root.add_widget(bottom_row)
         self.add_stat_labels(root)
         
@@ -277,11 +304,29 @@ class GameScreen(Screen):
                 mode = 'Wi‑Fi' if getattr(ard, 'sock', None) else 'Serial'
                 if not info:
                     info = getattr(ard, 'port', 'unknown')
-                self.arduino_status_label.text = f"Arduino: connected ({mode}) on {info}"
+                self.arduino_status_label.text = f"Arduino: Connected ({mode})"
+                # Green glowing text
+                self.arduino_status_label.color = (0.4, 1, 0.4, 1)
+                self.arduino_status_label.outline_color = (0.2, 0.8, 0.2, 0.6)
+                # Green glowing dot
+                self.arduino_indicator.color = (0.4, 1, 0.4, 1)
+                self.arduino_indicator.outline_color = (0.2, 0.8, 0.2, 0.7)
             else:
-                self.arduino_status_label.text = "Arduino: not connected"
+                self.arduino_status_label.text = "Arduino: Not Connected"
+                # Red glowing text
+                self.arduino_status_label.color = (1, 0.5, 0.5, 1)
+                self.arduino_status_label.outline_color = (0.8, 0.2, 0.2, 0.5)
+                # Red glowing dot
+                self.arduino_indicator.color = (1, 0.3, 0.3, 1)
+                self.arduino_indicator.outline_color = (0.8, 0.2, 0.2, 0.6)
         except Exception:
-            self.arduino_status_label.text = "Arduino: not connected"
+            self.arduino_status_label.text = "Arduino: Not Connected"
+            # Red glowing text
+            self.arduino_status_label.color = (1, 0.5, 0.5, 1)
+            self.arduino_status_label.outline_color = (0.8, 0.2, 0.2, 0.5)
+            # Red glowing dot
+            self.arduino_indicator.color = (1, 0.3, 0.3, 1)
+            self.arduino_indicator.outline_color = (0.8, 0.2, 0.2, 0.6)
 
     def retry_arduino_connect(self):
         # Close existing, attempt to re-open without blocking UI
@@ -368,6 +413,99 @@ class GameScreen(Screen):
         button.source = button.hoverSource if button.use else button.defaultSource
         text.toggle_visibility()
 
+    def toggle_sliders(self):
+        """Toggle visibility of the slider panel."""
+        if self.ui_panel_visible:
+            self.ui_panel.opacity = 0  # Hide
+            self.ui_panel_visible = False
+            self.remove_glow_effect()
+            # Keep hover disabled (no white square)
+            self.presets_button.hoverSource = "Graphics/Presets.png"
+        else:
+            self.ui_panel.opacity = 1  # Show
+            self.ui_panel_visible = True
+            self.add_glow_effect()
+            # Keep hover disabled to show glow properly
+            self.presets_button.hoverSource = "Graphics/Presets.png"
+            # Force button to show default image
+            self.presets_button.source = self.presets_button.defaultSource
+    
+    def add_glow_effect(self):
+        """Add a glowing blue-purple gradient effect to the presets button."""
+        from kivy.graphics import Color, Ellipse, PushMatrix, PopMatrix, Rotate
+        from kivy.animation import Animation
+        
+        # Store glow elements for updating
+        self.glow_elements = []
+        
+        # Create glowing gradient layers around the button using ellipses for softer edges
+        with self.presets_button.canvas.before:
+            # Multiple layers of ellipses to create a gradient glow effect
+            
+            # Outer glow - deep purple (largest, most transparent)
+            Color(0.6, 0.0, 1.0, 0.15)  # Purple
+            glow1 = Ellipse(
+                pos=(self.presets_button.x - 15, self.presets_button.y - 15),
+                size=(self.presets_button.width + 30, self.presets_button.height + 30)
+            )
+            self.glow_elements.append(('ellipse', glow1, 15))
+            
+            # Second layer - purple
+            Color(0.5, 0.2, 0.9, 0.2)
+            glow2 = Ellipse(
+                pos=(self.presets_button.x - 12, self.presets_button.y - 12),
+                size=(self.presets_button.width + 24, self.presets_button.height + 24)
+            )
+            self.glow_elements.append(('ellipse', glow2, 12))
+            
+            # Third layer - blue-purple
+            Color(0.3, 0.3, 1.0, 0.25)
+            glow3 = Ellipse(
+                pos=(self.presets_button.x - 9, self.presets_button.y - 9),
+                size=(self.presets_button.width + 18, self.presets_button.height + 18)
+            )
+            self.glow_elements.append(('ellipse', glow3, 9))
+            
+            # Fourth layer - blue
+            Color(0.2, 0.5, 1.0, 0.3)
+            glow4 = Ellipse(
+                pos=(self.presets_button.x - 6, self.presets_button.y - 6),
+                size=(self.presets_button.width + 12, self.presets_button.height + 12)
+            )
+            self.glow_elements.append(('ellipse', glow4, 6))
+            
+            # Fifth layer - light blue
+            Color(0.4, 0.7, 1.0, 0.35)
+            glow5 = Ellipse(
+                pos=(self.presets_button.x - 3, self.presets_button.y - 3),
+                size=(self.presets_button.width + 6, self.presets_button.height + 6)
+            )
+            self.glow_elements.append(('ellipse', glow5, 3))
+            
+            # Innermost layer - bright cyan
+            Color(0.5, 0.8, 1.0, 0.4)
+            glow6 = Ellipse(
+                pos=(self.presets_button.x - 1, self.presets_button.y - 1),
+                size=(self.presets_button.width + 2, self.presets_button.height + 2)
+            )
+            self.glow_elements.append(('ellipse', glow6, 1))
+        
+        # Bind position updates
+        self.presets_button.bind(pos=self.update_glow_position, size=self.update_glow_position)
+    
+    def update_glow_position(self, *args):
+        """Update glow position when button moves."""
+        if hasattr(self, 'glow_elements'):
+            for glow_type, glow_shape, offset in self.glow_elements:
+                glow_shape.pos = (self.presets_button.x - offset, self.presets_button.y - offset)
+                glow_shape.size = (self.presets_button.width + offset * 2, self.presets_button.height + offset * 2)
+    
+    def remove_glow_effect(self):
+        """Remove the glowing effect from the presets button."""
+        if hasattr(self, 'glow_elements'):
+            self.presets_button.canvas.before.clear()
+            self.glow_elements = []
+            self.presets_button.unbind(pos=self.update_glow_position, size=self.update_glow_position)
 
     def create_bottom_controls(self):
         """Create the bottom controls with switches and buttons."""
@@ -375,6 +513,9 @@ class GameScreen(Screen):
 
         # forces_container, _ = self.create_forces_switch()
         # forces_visible_container, _ = self.create_forces_visible_switch()
+        self.presets_button = self.create_hover_button("Presets", self.toggle_sliders)
+        # Disable hover effect initially - keep it same as default to show glow properly
+        self.presets_button.hoverSource = "Graphics/Presets.png"
         self.use_forces_button = self.create_hover_button("Forces-Off", self.toggle_intermolecular_forces)
         self.see_forces_button = self.create_hover_button("Hide-Forces", self.toggle_forces_visible)
         self.clear_button = self.create_hover_button("Clear", self.clear_game_area)
@@ -384,6 +525,7 @@ class GameScreen(Screen):
 
         # bottom_row.add_widget(forces_container)
         # bottom_row.add_widget(forces_visible_container)
+        bottom_row.add_widget(self.presets_button)
         bottom_row.add_widget(self.use_forces_button)
         bottom_row.add_widget(self.see_forces_button)
         bottom_row.add_widget(self.start_stop_button)
