@@ -3,6 +3,7 @@ from kivy.graphics import Color, Ellipse, Line, Rectangle
 from kivy.clock import Clock
 from kivy.core.text import Label as CoreLabel
 from kivy.uix.label import Label
+from kivy.core.window import Window
 import math
 import time
 
@@ -21,8 +22,9 @@ class Speedometer(Widget):
 
         self.percent_label = Label(
             text="0%",
-            font_size=20,
+            font_size=Window.height * 0.025,  # 2.5% of screen height
             color=(1, 1, 1, 1),
+            bold=True,
             size_hint=(None, None),
             size=(100, 30)
         )
@@ -89,7 +91,9 @@ class Speedometer(Widget):
                 Color(1, 1, 1, 1)
                 Line(points=[x1, y1, x2, y2], width=1.5)
 
-                label = CoreLabel(text=str(i * 10), font_size=int(self.width * 0.07))
+                # Scale font size based on window height (responsive, bold)
+                font_size = int(Window.height * 0.018)  # 1.8% of screen height
+                label = CoreLabel(text=str(i * 10), font_size=font_size, bold=True)
                 label.refresh()
                 texture = label.texture
                 lx = cx + label_radius * math.cos(rad) - texture.size[0] / 2
@@ -113,7 +117,9 @@ class Speedometer(Widget):
         # Move the percent label
         self.percent_label.text = f"{int(cpu_percent)}%"
         self.percent_label.pos = (cx - 20, cy - 15)
-        self.percent_label.font_size = int(self.width * 0.1)
+        # Scale font size based on window height (responsive)
+        self.percent_label.font_size = int(Window.height * 0.025)  # 2.5% of screen height
+        self.percent_label.bold = True
 
 
 

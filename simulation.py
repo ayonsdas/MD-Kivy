@@ -84,7 +84,7 @@ class GameScreen(Screen):
         self.cpu_usage_label = Label(
             text="[b]CPU % Usage[/b]",
             markup=True,
-            font_size='14sp',
+            font_size=Window.height * 0.020,  # 2.0% of screen height (responsive)
             color=(1, 1, 1, 1),
             size_hint=(0.15, 0.05),
             pos_hint={'right': 0.99, 'top': 0.68},
@@ -103,7 +103,7 @@ class GameScreen(Screen):
         self.arduino_graph_label = Label(
             text="[b]Arduino Energy Input[/b]",
             markup=True,
-            font_size='13sp',
+            font_size=Window.height * 0.019,  # 1.9% of screen height (responsive)
             color=(1, 1, 1, 1),
             size_hint=(0.15, 0.05),
             pos_hint={'right': 0.99, 'top': 0.41},
@@ -627,10 +627,28 @@ class GameScreen(Screen):
     #     return container, switch
 
     def add_stat_labels(self, root):
-        """Add labels to display simulation stats."""
-        self.game_area.total_energy_label = Label(text="Total Energy: 0", size_hint=(0.2, 0.1), pos_hint={'center_x': 0.18, 'center_y': 0.95})
-        self.game_area.temperature_label = Label(text="Temperature: 0", size_hint=(0.2, 0.1), pos_hint={'center_x': 0.51, 'center_y': 0.95})
-        self.game_area.pressure_label = Label(text="Pressure: 0", size_hint=(0.2, 0.1), pos_hint={'center_x': 0.84, 'center_y': 0.95})
+        """Add labels to display simulation stats with responsive font sizes."""
+        self.game_area.total_energy_label = Label(
+            text="Total Energy: 0",
+            size_hint=(0.2, 0.1),
+            pos_hint={'center_x': 0.18, 'center_y': 0.95},
+            font_size=Window.height * 0.024,  # 2.4% of screen height (responsive)
+            bold=True
+        )
+        self.game_area.temperature_label = Label(
+            text="Temperature: 0",
+            size_hint=(0.2, 0.1),
+            pos_hint={'center_x': 0.51, 'center_y': 0.95},
+            font_size=Window.height * 0.024,  # 2.4% of screen height (responsive)
+            bold=True
+        )
+        self.game_area.pressure_label = Label(
+            text="Pressure: 0",
+            size_hint=(0.2, 0.1),
+            pos_hint={'center_x': 0.84, 'center_y': 0.95},
+            font_size=Window.height * 0.024,  # 2.4% of screen height (responsive)
+            bold=True
+        )
 
         root.add_widget(self.game_area.total_energy_label)
         root.add_widget(self.game_area.temperature_label)
