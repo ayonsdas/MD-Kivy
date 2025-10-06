@@ -119,7 +119,7 @@ class GameLayout(Widget):
             pos_hint={"x": 0.02, "top": 0.98},  # Near top-left corner
             color=(1, 1, 1, 1),  # white
             bold=True,
-            font_size=Window.height * 0.023,  # 2.3% of screen height (responsive)
+            font_size=Window.height * 0.028,  # 2.8% of screen height (larger for visibility)
             halign='left',
             valign='top'
         )

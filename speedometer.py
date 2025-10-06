@@ -91,8 +91,8 @@ class Speedometer(Widget):
                 Color(1, 1, 1, 1)
                 Line(points=[x1, y1, x2, y2], width=1.5)
 
-                # Scale font size based on window height (responsive, bold)
-                font_size = int(Window.height * 0.018)  # 1.8% of screen height
+                # Scale font size proportionally to speedometer size (bold)
+                font_size = int(side * 0.055)  # 5.5% of speedometer diameter
                 label = CoreLabel(text=str(i * 10), font_size=font_size, bold=True)
                 label.refresh()
                 texture = label.texture
@@ -117,8 +117,8 @@ class Speedometer(Widget):
         # Move the percent label
         self.percent_label.text = f"{int(cpu_percent)}%"
         self.percent_label.pos = (cx - 20, cy - 15)
-        # Scale font size based on window height (responsive)
-        self.percent_label.font_size = int(Window.height * 0.025)  # 2.5% of screen height
+        # Scale font size proportionally to speedometer size (bold)
+        self.percent_label.font_size = int(side * 0.08)  # 8% of speedometer diameter
         self.percent_label.bold = True
 
 

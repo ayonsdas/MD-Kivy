@@ -74,9 +74,9 @@ class GameScreen(Screen):
         # ------------------ RIGHT SIDE PANEL (RESPONSIVE) -------------------
         # Use FloatLayout with pos_hint for screen-size independent positioning
         
-        # Speedometer (top right)
+        # Speedometer (top right) - larger size for better visibility
         self.speedometer = Speedometer(performance_monitor=self.monitor)
-        self.speedometer.size_hint = (0.15, 0.25)
+        self.speedometer.size_hint = (0.18, 0.28)  # Increased from (0.15, 0.25)
         self.speedometer.pos_hint = {'right': 0.99, 'top': 0.95}
         self.root.add_widget(self.speedometer)
 
@@ -84,7 +84,7 @@ class GameScreen(Screen):
         self.cpu_usage_label = Label(
             text="[b]CPU % Usage[/b]",
             markup=True,
-            font_size=Window.height * 0.020,  # 2.0% of screen height (responsive)
+            font_size=Window.height * 0.025,  # 2.5% of screen height (larger for visibility)
             color=(1, 1, 1, 1),
             size_hint=(0.15, 0.05),
             pos_hint={'right': 0.99, 'top': 0.68},
@@ -103,7 +103,7 @@ class GameScreen(Screen):
         self.arduino_graph_label = Label(
             text="[b]Arduino Energy Input[/b]",
             markup=True,
-            font_size=Window.height * 0.019,  # 1.9% of screen height (responsive)
+            font_size=Window.height * 0.024,  # 2.4% of screen height (larger for visibility)
             color=(1, 1, 1, 1),
             size_hint=(0.15, 0.05),
             pos_hint={'right': 0.99, 'top': 0.41},
