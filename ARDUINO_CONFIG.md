@@ -6,6 +6,7 @@ This app supports both wired (USB) and wireless (TCP/Wi-Fi) Arduino connections.
 
 ### For Wireless Arduino (ESP8266/ESP32):
 
+#### Linux/Mac:
 1. **Find your Arduino's IP address** (check your router or serial monitor)
 2. **Edit `run_wireless.sh`** and change the IP address:
    ```bash
@@ -16,8 +17,20 @@ This app supports both wired (USB) and wireless (TCP/Wi-Fi) Arduino connections.
    ./run_wireless.sh
    ```
 
+#### Windows:
+1. **Find your Arduino's IP address** (check your router or serial monitor)
+2. **Edit `run_wireless.bat`** and change the IP address:
+   ```batch
+   set ARDUINO_TCP_HOST=192.168.1.100
+   ```
+3. **Double-click `run_wireless.bat`** or run in Command Prompt:
+   ```cmd
+   run_wireless.bat
+   ```
+
 ### For Wired Arduino (USB):
 
+#### Linux/Mac:
 1. **Plug in your Arduino via USB**
 2. **Check which port it's on:**
    ```bash
@@ -27,6 +40,20 @@ This app supports both wired (USB) and wireless (TCP/Wi-Fi) Arduino connections.
 3. **Run the wired script:**
    ```bash
    ./run_wired.sh
+   ```
+
+#### Windows:
+1. **Plug in your Arduino via USB**
+2. **Check which COM port it's on:**
+   - Open Device Manager → Ports (COM & LPT)
+   - Look for "Arduino" or "USB Serial" (e.g., COM3, COM4)
+3. **Edit `run_wired.bat`** and change the COM port:
+   ```batch
+   set ARDUINO_PORT=COM3
+   ```
+4. **Double-click `run_wired.bat`** or run in Command Prompt:
+   ```cmd
+   run_wired.bat
    ```
 
 ## Configuration Details
@@ -47,11 +74,18 @@ ARDUINO_TCP_PORT=8888              # Arduino's TCP port
 
 ### Wired Configuration
 
-**Environment Variables:**
+**Environment Variables (Linux/Mac):**
 ```bash
 ARDUINO_MODE=serial                # Enable serial mode (default)
 ARDUINO_PORT=/dev/ttyACM0         # Serial port (auto-detected if not set)
 ARDUINO_BAUD=9600                 # Baud rate (default: 9600)
+```
+
+**Environment Variables (Windows):**
+```cmd
+set ARDUINO_MODE=serial           
+set ARDUINO_PORT=COM3             # Check Device Manager for your COM port
+set ARDUINO_BAUD=9600
 ```
 
 ### Auto-Detection
@@ -79,10 +113,16 @@ sudo usermod -a -G dialout $USER
 ```
 
 ### Can't Find Arduino Port
-List all serial ports:
+
+**Linux/Mac:**
 ```bash
 ls -l /dev/tty* | grep -E "ACM|USB"
 ```
+
+**Windows:**
+1. Open Device Manager (Win+X, then select Device Manager)
+2. Expand "Ports (COM & LPT)"
+3. Look for Arduino or USB Serial Device (e.g., COM3, COM4, COM5)
 
 ### Wireless Not Connecting
 1. Check Arduino is on same network

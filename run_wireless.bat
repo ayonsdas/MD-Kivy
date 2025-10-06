@@ -1,0 +1,10 @@
+@echo off
+REM Launch script for wireless Arduino connection on Windows
+
+REM Configure wireless Arduino connection
+set ARDUINO_MODE=tcp
+set ARDUINO_TCP_HOST=192.168.4.1
+set ARDUINO_TCP_PORT=8888
+
+echo Connecting to wireless Arduino at %ARDUINO_TCP_HOST%:%ARDUINO_TCP_PORT%
+python main.py
