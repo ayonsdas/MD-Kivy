@@ -71,83 +71,47 @@ class GameScreen(Screen):
 #        GameLayout to root
         self.root.add_widget(self.game_area)
 
-        # ------------------ RIGHT SIDE PANEL -------------------
-        # Box that holds speedometer, CPU label, and Arduino graph
-        # compute offsets in normalized screen units
-        # total right shift: 20mm (previous 10mm + 10mm more)
-        _right_offset = mm(20) / float(Window.width)
-        # down shift: 5mm
-        _down_offset = mm(5) / float(Window.height)
-        self.right_panel = BoxLayout(
-            orientation='vertical',
-            size_hint=(0.25, 0.6),
-            pos_hint={'right': 1.0 + _right_offset, 'top': 0.97 - _down_offset},
-            spacing=8
-        )
-
-        # Speedometer at the top (original behavior preserved)
+        # ------------------ RIGHT SIDE PANEL (RESPONSIVE) -------------------
+        # Use FloatLayout with pos_hint for screen-size independent positioning
+        
+        # Speedometer (top right)
         self.speedometer = Speedometer(performance_monitor=self.monitor)
-        self.speedometer.size_hint = (0.57, 0.38)
+        self.speedometer.size_hint = (0.15, 0.25)
+        self.speedometer.pos_hint = {'right': 0.99, 'top': 0.95}
+        self.root.add_widget(self.speedometer)
 
-        # CPU label below it
+        # CPU Usage Label (below speedometer, centered)
         self.cpu_usage_label = Label(
             text="[b]CPU % Usage[/b]",
             markup=True,
             font_size='14sp',
             color=(1, 1, 1, 1),
-            size_hint=(1, 0.1),
+            size_hint=(0.15, 0.05),
+            pos_hint={'right': 0.99, 'top': 0.68},
             halign='center',
             valign='middle'
         )
         self.cpu_usage_label.bind(size=self.cpu_usage_label.setter('text_size'))
+        self.root.add_widget(self.cpu_usage_label)
 
-        # Arduino Graph + Label
+        # Arduino Graph (below CPU label)
+        self.arduino_graph.size_hint = (0.15, 0.2)
+        self.arduino_graph.pos_hint = {'right': 0.99, 'top': 0.62}
+        self.root.add_widget(self.arduino_graph)
+
+        # Arduino Graph Label (below graph, centered)
         self.arduino_graph_label = Label(
             text="[b]Arduino Energy Input[/b]",
             markup=True,
             font_size='13sp',
             color=(1, 1, 1, 1),
+            size_hint=(0.15, 0.05),
+            pos_hint={'right': 0.99, 'top': 0.41},
             halign='center',
-            valign='middle',
-            size_hint=(1, 0.1)
+            valign='middle'
         )
         self.arduino_graph_label.bind(size=self.arduino_graph_label.setter('text_size'))
-
-        # Shift elements left without moving the speedometer:
-        # - CPU label: 2.5 cm left
-        # - Arduino graph: 5.0 cm left (moved 0.5 cm more left)
-        # - Arduino label: 3.0 cm left (stays in place)
-        _cpu_left_shift = mm(25)
-        _arduino_graph_left_shift = mm(50)  # 5.0 cm = 50 mm
-        _arduino_label_left_shift = mm(30)
-
-        # Apply transforms explicitly
-        with self.cpu_usage_label.canvas.before:
-            PushMatrix()
-            Translate(-_cpu_left_shift, 0, 0)
-        with self.cpu_usage_label.canvas.after:
-            PopMatrix()
-
-        with self.arduino_graph.canvas.before:
-            PushMatrix()
-            Translate(-_arduino_graph_left_shift, 0, 0)
-        with self.arduino_graph.canvas.after:
-            PopMatrix()
-
-        with self.arduino_graph_label.canvas.before:
-            PushMatrix()
-            Translate(-_arduino_label_left_shift, 0, 0)
-        with self.arduino_graph_label.canvas.after:
-            PopMatrix()
-
-        # Add to right panel
-        self.right_panel.add_widget(self.speedometer)
-        self.right_panel.add_widget(self.cpu_usage_label)
-        self.right_panel.add_widget(self.arduino_graph)
-        self.right_panel.add_widget(self.arduino_graph_label)
-
-        # Add right panel to root layout
-        self.root.add_widget(self.right_panel)
+        self.root.add_widget(self.arduino_graph_label)
 
         # Arduino label: get it from the same game_area
         self.arduino_label = self.game_area.arduino_data_label
