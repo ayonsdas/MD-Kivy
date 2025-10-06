@@ -77,14 +77,14 @@ class GameScreen(Screen):
         # Speedometer (top right) - larger size for better visibility
         self.speedometer = Speedometer(performance_monitor=self.monitor)
         self.speedometer.size_hint = (0.18, 0.28)  # Increased from (0.15, 0.25)
-        self.speedometer.pos_hint = {'right': 0.99, 'top': 0.95}
+        self.speedometer.pos_hint = {'right': 1.005, 'top': 0.95}  # Moved 0.5cm right (0.005 = ~0.5cm)
         self.root.add_widget(self.speedometer)
 
         # CPU Usage Label (below speedometer, centered)
         self.cpu_usage_label = Label(
             text="[b]CPU % Usage[/b]",
             markup=True,
-            font_size=Window.height * 0.025,  # 2.5% of screen height (larger for visibility)
+            font_size=Window.height * 0.032,  # 3.2% of screen height (much larger)
             color=(1, 1, 1, 1),
             size_hint=(0.15, 0.05),
             pos_hint={'right': 0.99, 'top': 0.68},
@@ -103,7 +103,7 @@ class GameScreen(Screen):
         self.arduino_graph_label = Label(
             text="[b]Arduino Energy Input[/b]",
             markup=True,
-            font_size=Window.height * 0.024,  # 2.4% of screen height (larger for visibility)
+            font_size=Window.height * 0.030,  # 3.0% of screen height (much larger)
             color=(1, 1, 1, 1),
             size_hint=(0.15, 0.05),
             pos_hint={'right': 0.99, 'top': 0.41},
@@ -632,21 +632,21 @@ class GameScreen(Screen):
             text="Total Energy: 0",
             size_hint=(0.2, 0.1),
             pos_hint={'center_x': 0.18, 'center_y': 0.95},
-            font_size=Window.height * 0.024,  # 2.4% of screen height (responsive)
+            font_size=Window.height * 0.035,  # 3.5% of screen height (much larger)
             bold=True
         )
         self.game_area.temperature_label = Label(
             text="Temperature: 0",
             size_hint=(0.2, 0.1),
             pos_hint={'center_x': 0.51, 'center_y': 0.95},
-            font_size=Window.height * 0.024,  # 2.4% of screen height (responsive)
+            font_size=Window.height * 0.035,  # 3.5% of screen height (much larger)
             bold=True
         )
         self.game_area.pressure_label = Label(
             text="Pressure: 0",
             size_hint=(0.2, 0.1),
             pos_hint={'center_x': 0.84, 'center_y': 0.95},
-            font_size=Window.height * 0.024,  # 2.4% of screen height (responsive)
+            font_size=Window.height * 0.035,  # 3.5% of screen height (much larger)
             bold=True
         )
 
