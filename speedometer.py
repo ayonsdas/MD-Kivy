@@ -66,24 +66,28 @@ class Speedometer(Widget):
         needle_length = radius * 0.8
 
         with self.canvas:
-            # Multi-layer glowing ring (much stronger and more dramatic)
+            # Multi-layer glowing ring (larger radius, softer intensity)
             pulse = 0.5 + 0.5 * math.sin(time.time() * 2)
-            base_alpha = 0.25 + (cpu_percent / 100) * 0.6 * pulse  # Increased from 0.15 + 0.4
+            base_alpha = 0.18 + (cpu_percent / 100) * 0.45 * pulse  # Softer intensity
             
-            # Outermost glow layer (largest)
-            Color(r, g, b, base_alpha * 0.5)  # Increased from 0.3
-            Ellipse(pos=(square_x - 40, square_y - 40), size=(side + 80, side + 80))
+            # Outermost glow layer (much larger radius)
+            Color(r, g, b, base_alpha * 0.35)
+            Ellipse(pos=(square_x - 60, square_y - 60), size=(side + 120, side + 120))
             
             # Second glow layer
-            Color(r, g, b, base_alpha * 0.7)  # Increased from 0.5
-            Ellipse(pos=(square_x - 30, square_y - 30), size=(side + 60, side + 60))
+            Color(r, g, b, base_alpha * 0.5)
+            Ellipse(pos=(square_x - 45, square_y - 45), size=(side + 90, side + 90))
             
             # Third glow layer
-            Color(r, g, b, base_alpha * 0.85)  # Increased from 0.7
+            Color(r, g, b, base_alpha * 0.65)
+            Ellipse(pos=(square_x - 30, square_y - 30), size=(side + 60, side + 60))
+            
+            # Fourth glow layer
+            Color(r, g, b, base_alpha * 0.8)
             Ellipse(pos=(square_x - 20, square_y - 20), size=(side + 40, side + 40))
             
             # Inner glow layer (brightest)
-            Color(r, g, b, base_alpha * 1.0)  # Increased from 0.9
+            Color(r, g, b, base_alpha * 0.95)
             Ellipse(pos=(square_x - 10, square_y - 10), size=(side + 20, side + 20))
 
             # Outer dial
