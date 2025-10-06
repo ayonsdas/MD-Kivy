@@ -66,10 +66,24 @@ class Speedometer(Widget):
         needle_length = radius * 0.8
 
         with self.canvas:
-            # Glowing ring
+            # Multi-layer glowing ring (larger and more dramatic)
             pulse = 0.5 + 0.5 * math.sin(time.time() * 2)
-            glow_alpha = 0.2 + (cpu_percent / 100) * 0.5 * pulse
-            Color(r, g, b, glow_alpha)
+            base_alpha = 0.15 + (cpu_percent / 100) * 0.4 * pulse
+            
+            # Outermost glow layer (largest)
+            Color(r, g, b, base_alpha * 0.3)
+            Ellipse(pos=(square_x - 40, square_y - 40), size=(side + 80, side + 80))
+            
+            # Second glow layer
+            Color(r, g, b, base_alpha * 0.5)
+            Ellipse(pos=(square_x - 30, square_y - 30), size=(side + 60, side + 60))
+            
+            # Third glow layer
+            Color(r, g, b, base_alpha * 0.7)
+            Ellipse(pos=(square_x - 20, square_y - 20), size=(side + 40, side + 40))
+            
+            # Inner glow layer (brightest)
+            Color(r, g, b, base_alpha * 0.9)
             Ellipse(pos=(square_x - 10, square_y - 10), size=(side + 20, side + 20))
 
             # Outer dial
@@ -104,7 +118,7 @@ class Speedometer(Widget):
             rad = math.radians(self.current_angle)
             nx = cx + needle_length * math.cos(rad)
             ny = cy + needle_length * math.sin(rad)
-            Color(r, g, 0, glow_alpha)
+            Color(r, g, 0, base_alpha)
             Line(points=[cx, cy, nx, ny], width=10)
 
             Color(r, g, 0, 1)
