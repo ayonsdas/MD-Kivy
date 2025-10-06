@@ -67,7 +67,10 @@ class GameLayout(Widget):
 
         self.molecules = []  # List of all molecules in the game        
         Clock.schedule_interval(self.monitor_performance, 1)
-        set_global_monitor(self.performance_monitor) 
+        set_global_monitor(self.performance_monitor)
+        
+        # Schedule periodic cleanup to prevent memory leaks
+        Clock.schedule_interval(self.periodic_cleanup, 60)  # Every 60 seconds 
 
         # --- Smooth performance helpers (low-risk) ---
         self.ui_update_every = 5           # update labels every 5 frames
@@ -281,6 +284,25 @@ class GameLayout(Widget):
         for bond, line in self.bonds.items():
             self.canvas.remove(line)
         self.bonds.clear()
+    
+    def periodic_cleanup(self, dt):
+        """Periodic memory cleanup to prevent accumulation over time"""
+        try:
+            # Force garbage collection
+            gc.collect()
+            
+            # Clean up any orphaned canvas instructions
+            if len(self.molecules) == 0:
+                # If no molecules, clear any remaining canvas objects
+                self.canvas.clear()
+                # Redraw background
+                with self.canvas.before:
+                    Color(0, 0, 0, 1)
+                    self.rect = Rectangle(pos=self.pos, size=self.size)
+            
+            print(f"[DEBUG] Periodic cleanup: {len(self.molecules)} molecules, {len(self.bonds)} bonds")
+        except Exception as e:
+            print(f"[WARNING] Cleanup error: {e}")
 
     def update_bond_lines(self):
         """Update the positions of all bond lines."""
@@ -404,6 +426,9 @@ class GameLayout(Widget):
             if self.update_event is not None:
                 self.update_event.cancel()
                 self.update_event = None
+            
+            # Force cleanup when stopping to free memory
+            gc.collect()
 
     def set_speed(self, speed_factor):
         """Adjust the simulation speed by setting a new interval."""

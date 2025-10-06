@@ -54,9 +54,14 @@ class StartScreen(Screen):
         """Force memory cleanup to prevent accumulation"""
         try:
             gc.collect()  # Force garbage collection
+            gc.collect()  # Run twice for better cleanup
             print("[DEBUG] Memory cleanup completed")
         except Exception as e:
             print(f"[WARNING] Memory cleanup error: {e}")
+    
+    def schedule_periodic_cleanup(self):
+        """Schedule periodic memory cleanup for video playback"""
+        Clock.schedule_interval(lambda dt: self.force_cleanup(), 30)  # Every 30 seconds
 
     def add_background(self, root):
         with root.canvas.before:
@@ -108,6 +113,9 @@ class StartScreen(Screen):
         self.play_intro_video()
 
         Window.bind(on_touch_down=self.on_touch_down_global)
+        
+        # Schedule periodic cleanup to prevent memory leaks
+        self.schedule_periodic_cleanup()
 
     def play_intro_video(self):
         if self.video_index >= len(self.video_paths):
@@ -235,11 +243,16 @@ class StartScreen(Screen):
             print(f"[ERROR] Loop video not found in any folder.")
             return
 
-        # ANTI-FREEZE: Smaller buffer for loop video too
+        # ANTI-FREEZE: Smaller buffer for loop video too + cache optimization
         self.loop_video = Video(
             source=loop_path,
             state='play',
-            options={'eos': 'loop', 'buffer_size': 2048},  # Smaller buffer
+            options={
+                'eos': 'loop', 
+                'buffer_size': 1024,  # Even smaller buffer to prevent accumulation
+                'autoplay': True,
+                'allow_cache': False  # Prevent cache buildup
+            },
             allow_stretch=True,
             keep_ratio=False,
             volume=0,
