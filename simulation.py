@@ -74,10 +74,11 @@ class GameScreen(Screen):
         # ------------------ RIGHT SIDE PANEL (RESPONSIVE) -------------------
         # Use FloatLayout with pos_hint for screen-size independent positioning
         
-        # Speedometer (top right) - larger size for better visibility
+        # Speedometer (top right) - larger size, keep circular
         self.speedometer = Speedometer(performance_monitor=self.monitor)
-        self.speedometer.size_hint = (0.18, 0.28)  # Increased from (0.15, 0.25)
-        self.speedometer.pos_hint = {'right': 1.005, 'top': 0.95}  # Moved 0.5cm right (0.005 = ~0.5cm)
+        # Using same proportion for width and height to maintain circular shape
+        self.speedometer.size_hint = (0.25, 0.25)  # Bigger and circular (increased from 0.20)
+        self.speedometer.pos_hint = {'right': 1.035, 'top': 0.95}  # Moved more right to perfectly center with label
         self.root.add_widget(self.speedometer)
 
         # CPU Usage Label (below speedometer, centered)

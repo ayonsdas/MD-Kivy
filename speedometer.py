@@ -66,24 +66,24 @@ class Speedometer(Widget):
         needle_length = radius * 0.8
 
         with self.canvas:
-            # Multi-layer glowing ring (larger and more dramatic)
+            # Multi-layer glowing ring (much stronger and more dramatic)
             pulse = 0.5 + 0.5 * math.sin(time.time() * 2)
-            base_alpha = 0.15 + (cpu_percent / 100) * 0.4 * pulse
+            base_alpha = 0.25 + (cpu_percent / 100) * 0.6 * pulse  # Increased from 0.15 + 0.4
             
             # Outermost glow layer (largest)
-            Color(r, g, b, base_alpha * 0.3)
+            Color(r, g, b, base_alpha * 0.5)  # Increased from 0.3
             Ellipse(pos=(square_x - 40, square_y - 40), size=(side + 80, side + 80))
             
             # Second glow layer
-            Color(r, g, b, base_alpha * 0.5)
+            Color(r, g, b, base_alpha * 0.7)  # Increased from 0.5
             Ellipse(pos=(square_x - 30, square_y - 30), size=(side + 60, side + 60))
             
             # Third glow layer
-            Color(r, g, b, base_alpha * 0.7)
+            Color(r, g, b, base_alpha * 0.85)  # Increased from 0.7
             Ellipse(pos=(square_x - 20, square_y - 20), size=(side + 40, side + 40))
             
             # Inner glow layer (brightest)
-            Color(r, g, b, base_alpha * 0.9)
+            Color(r, g, b, base_alpha * 1.0)  # Increased from 0.9
             Ellipse(pos=(square_x - 10, square_y - 10), size=(side + 20, side + 20))
 
             # Outer dial
@@ -128,11 +128,12 @@ class Speedometer(Widget):
             Color(r, g, 0, 1)
             Ellipse(pos=(cx - 6, cy - 6), size=(12, 12))
 
-        # Move the percent label
+        # Move the percent label (adjusted position: down 0.5cm, left 0.1cm)
         self.percent_label.text = f"{int(cpu_percent)}%"
-        self.percent_label.pos = (cx - 20, cy - 15)
-        # Scale font size proportionally to speedometer size (bold)
-        self.percent_label.font_size = int(side * 0.08)  # 8% of speedometer diameter
+        # Move down by ~0.5cm (subtract from y), left by ~0.1cm (subtract from x)
+        self.percent_label.pos = (cx - 21, cy - 20)
+        # Scale font size proportionally to speedometer size (much larger and bold)
+        self.percent_label.font_size = int(side * 0.12)  # 12% of speedometer diameter (increased from 10%)
         self.percent_label.bold = True
 
 
