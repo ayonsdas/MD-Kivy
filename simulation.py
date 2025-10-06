@@ -472,8 +472,15 @@ class GameScreen(Screen):
             self.presets_button.unbind(pos=self.update_glow_position, size=self.update_glow_position)
 
     def create_bottom_controls(self):
-        """Create the bottom controls with switches and buttons."""
-        bottom_row = BoxLayout(orientation='horizontal', size_hint=(0.9, None), height=50, pos_hint={'center_x': 0.5, 'center_y': 0.05})
+        """Create the bottom controls with switches and buttons (responsive sizing)."""
+        # Make button row height scale with screen - 8% of screen height
+        button_height = Window.height * 0.08
+        bottom_row = BoxLayout(
+            orientation='horizontal',
+            size_hint=(0.9, None),
+            height=button_height,
+            pos_hint={'center_x': 0.5, 'center_y': 0.05}
+        )
 
         # forces_container, _ = self.create_forces_switch()
         # forces_visible_container, _ = self.create_forces_visible_switch()
@@ -525,10 +532,10 @@ class GameScreen(Screen):
         return box, slider
 
     def create_hover_button(self, label, callback):
-        """Helper to create buttons with hover effects."""
+        """Helper to create buttons with hover effects (responsive sizing)."""
+        # Buttons fill their container proportionally
         return HoverItem(
-            size_hint=(1, None),
-            height=50,
+            size_hint=(1, 1),
             hoverSource=f"Graphics/{label}_Highlighted.png",
             defaultSource=f"Graphics/{label}.png",
             function=lambda x: callback()
