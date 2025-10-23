@@ -34,53 +34,67 @@ class ArduinoGraph(Widget):
         self.motion_label.pos = (self.x + 10, self.top - 30)
 
     def add_data_point(self, value):
+        # Smooth transitions for professional appearance
         if self.data_points:
-            value = 0.6 * self.data_points[-1] + 0.4 * value
+            value = 0.3 * self.data_points[-1] + 0.7 * value  # Balanced smoothing
         self.data_points.pop(0)
         self.data_points.append(value)
 
     def update_graph(self, dt):
         self.canvas.clear()
 
-        magnitude = self.data_points[-1] * 16384.0
         height = self.height
         width = self.width
+        
+        # Current intensity (0.0 = rest, 1.0 = strong shake)
+        intensity = self.data_points[-1]
 
         with self.canvas:
             # Background
             Color(*self.background_color)
             Rectangle(pos=self.pos, size=self.size)
 
-            # Motion color
-            if magnitude < 2000:
-                Color(0.3, 1, 0.3, 1)
-            elif magnitude < 10000:
-                Color(1, 1, 0.3, 1)
-            else:
-                Color(1, 0.4, 0.4, 1)
+            # Dynamic color gradient based on shake intensity
+            if intensity < 0.05:  # Very low activity (at rest)
+                Color(0.3, 1, 0.3, 1)  # Green
+            elif intensity < 0.15:  # Light movement
+                Color(0.6, 1, 0.3, 1)  # Light green
+            elif intensity < 0.35:  # Moderate shake
+                Color(1, 1, 0.3, 1)  # Yellow
+            elif intensity < 0.60:  # Strong shake
+                Color(1, 0.5, 0.2, 1)  # Orange
+            else:  # Very strong shake (60%+)
+                Color(1, 0.2, 0.2, 1)  # Red
 
-            # Scaled points
+            # Draw graph line - height proportional to shake intensity
             points = []
             for i in range(1, len(self.data_points)):
                 x = self.x + (i / self.max_points) * width
-                y = self.y + self.data_points[i] * (height / 2)
+                # Full height utilization: 0.0 = bottom, 1.0 = top
+                y = self.y + self.data_points[i] * height
                 points.extend([x, y])
 
             if len(points) >= 4:
-                Line(points=points, width=1.5)
+                Line(points=points, width=2.0)  # Slightly thicker for visibility
 
         self.update_label_position()
 
-    def feed_arduino(self, x, y, z):
-        magnitude = math.sqrt(x**2 + y**2 + z**2)
-        normalized = magnitude / 16384.0
+    def feed_arduino(self, x, y, z, shake_intensity=0):
+        """
+        Feed Arduino data and shake intensity.
+        shake_intensity: 0-100 value representing shake strength (calculated from delta)
+        """
+        # Use the pre-calculated shake intensity from game_layout
+        # Normalize to 0.0-1.0 range for graph height
+        normalized = min(shake_intensity / 100.0, 1.0)
+        
         self.add_data_point(normalized)
 
-        # Update label
-        if magnitude < 2000:
+        # Update label based on shake intensity (adjusted thresholds)
+        if shake_intensity < 10:  # Very minimal movement
             level = "Low"
-        elif magnitude < 10000:
+        elif shake_intensity < 30:  # Moderate shaking
             level = "Medium"
-        else:
+        else:  # Strong shaking
             level = "Strong"
-        self.motion_label.text = f"Motion: {level}"
+        self.motion_label.text = f"Shake: {level} ({shake_intensity:.0f}%)"

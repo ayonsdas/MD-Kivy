@@ -8,3 +8,6 @@ set ARDUINO_TCP_PORT=8888
 
 echo Connecting to wireless Arduino at %ARDUINO_TCP_HOST%:%ARDUINO_TCP_PORT%
 python main.py
+
+
+# access the serial monitor data

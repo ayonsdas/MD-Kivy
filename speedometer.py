@@ -47,7 +47,9 @@ class Speedometer(Widget):
 
     def update_speedometer(self, dt):
         self.canvas.clear()
-        cpu_percent = min(self.monitor.get_cpu_usage(), 100)
+        # Use target usage (simulation metrics) instead of actual CPU
+        # This reflects Arduino shake intensity + molecule activity
+        cpu_percent = min(self.monitor._target_usage, 100)
         target_angle = 135 + (cpu_percent * 270 / 100)
         self.current_angle += (target_angle - self.current_angle) * 0.1
 

@@ -39,14 +39,20 @@ class ArduinoReading:
         self.serial_connection = None
         self.sock = None
         self._rx_buffer = b""
+        self._line_buffer = []  # Buffer to collect X, Y, Z lines
+        self._temp_x = None
+        self._temp_y = None
+        self._temp_z = None
         self.last_xyz = None
-        self.last_button = None  # 'HIGH'/'LOW'
+        self.last_button = None  # 'HIGH'/'LOW' ==> remove its part receiver !!!!!!!!!!!!!!1
         self.last_analog = None  # int
 
-        # Regex patterns
+        # Regex patterns - added pattern to match Arduino's newline-separated format
         self._patterns = [
             re.compile(r"X\s*=\s*(-?\d+)\s*\|\s*Y\s*=\s*(-?\d+)\s*\|\s*Z\s*=\s*(-?\d+)"),
-            re.compile(r"X\s*:\s*(-?\d+)\s*,\s*Y\s*:\s*(-?\d+)\s*,\s*Z\s*:\s*(-?\d+)")
+            re.compile(r"X\s*:\s*(-?\d+)\s*,\s*Y\s*:\s*(-?\d+)\s*,\s*Z\s*:\s*(-?\d+)"),
+            # New pattern for "X: value\nY: value\nZ: value" format (captures across newlines)
+            re.compile(r"X\s*:\s*(-?\d+).*?Y\s*:\s*(-?\d+).*?Z\s*:\s*(-?\d+)", re.DOTALL)
         ]
         self._btn_pat = re.compile(r"\b(HIGH|LOW)\b", re.IGNORECASE)
         self._analog_pat = re.compile(r"\b(\d{1,5})\b")  # generic analog value
@@ -65,7 +71,7 @@ class ArduinoReading:
         else:
             # Serial mode (default)
             self.port = port or env_port or self._auto_detect_port()
-            self.baud_rate = int(baud_rate or (env_baud if env_baud else 9600))
+            self.baud_rate = int(baud_rate or (env_baud if env_baud else 115200))  # Changed from 9600 to match Arduino
             self.serial_connection = serial.Serial(self.port, self.baud_rate, timeout=0)
             time.sleep(2)
 
@@ -93,11 +99,28 @@ class ArduinoReading:
         return "/dev/ttyACM0"
 
     def _parse_xyz_line(self, line: str):
-        for pat in self._patterns:
+        # Try existing patterns first (single-line formats)
+        for pat in self._patterns[:2]:  # Only the first two patterns
             m = pat.search(line)
             if m:
                 x, y, z = map(int, m.groups())
                 return x, y, z
+        
+        # Try to parse individual X:, Y:, Z: lines
+        x_match = re.search(r"X\s*:\s*(-?\d+)", line)
+        y_match = re.search(r"Y\s*:\s*(-?\d+)", line)
+        z_match = re.search(r"Z\s*:\s*(-?\d+)", line)
+        
+        if x_match:
+            self._temp_x = int(x_match.group(1))
+        if y_match:
+            self._temp_y = int(y_match.group(1))
+        if z_match:
+            self._temp_z = int(z_match.group(1))
+            # When we get Z, we have all three values
+            if hasattr(self, '_temp_x') and hasattr(self, '_temp_y'):
+                return self._temp_x, self._temp_y, self._temp_z
+        
         return None
 
     def _readline_nonblocking(self):
@@ -157,13 +180,14 @@ class ArduinoReading:
         return True
 
     def get_xyz(self):
-        """Return (x, y, z) if new data is available; else None. Non-blocking."""
+        """Return (x, y, z) if available. Always tries to read new data. Non-blocking."""
         try:
-            if self._consume_and_parse() and self.last_xyz is not None:
-                return self.last_xyz
+            # Always try to consume new data
+            self._consume_and_parse()
+            # Return last known value (could be from previous read)
+            return self.last_xyz
         except Exception:
             return None
-        return None
 
     def get_button_state(self):
         """Return 'HIGH'/'LOW' if present; else None."""

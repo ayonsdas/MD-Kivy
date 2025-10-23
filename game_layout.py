@@ -10,6 +10,7 @@ import math
 from performance_monitor import PerformanceMonitor
 from performance_monitor import set_global_monitor
 from arduino_reading import ArduinoReading  # imported its reading right now!!!
+# from arduino_receiver_fixed_reading_c import ArduinoReading
 import serial
 import time
 import re
@@ -78,6 +79,10 @@ class GameLayout(Widget):
         self._arduino_log_accum = 0.0      # throttle arduino prints to ~1 Hz
         self._sec_accum = 0.0              # generic per-frame time accumulator
         self.arduino_activity = 0.0        # Arduino accelerometer activity (0-100)
+        
+        # Track previous acceleration for shake detection
+        self._prev_accel = None            # Previous (x, y, z) accelerometer values
+        self._shake_intensity = 0.0        # Current shake intensity (0-100)
 
         # Gentle CPU governor: slow update interval and hide arrows when CPU is high
         self._governor_state = 'normal'    # 'normal' | 'throttle'
@@ -478,22 +483,59 @@ class GameLayout(Widget):
             # Scale factor: 1.0 = normal gravity, >1.0 = shaking/movement
             scale_factor = max(accel_magnitude / 16384.0, 0.1)  # Minimum 0.1 to avoid zero
 
+            # Calculate SHAKE INTENSITY based on acceleration change rate (jerk)
+            if self._prev_accel is not None:
+                prev_x, prev_y, prev_z = self._prev_accel
+                # Measure how much each axis changed (delta)
+                delta_x = abs(x - prev_x)
+                delta_y = abs(y - prev_y)
+                delta_z = abs(z - prev_z)
+                
+                # Total change magnitude (shake = rapid acceleration changes)
+                shake_delta = (delta_x**2 + delta_y**2 + delta_z**2) ** 0.5
+                
+                # Scale to 0-100 with better calibration
+                # Typical frame-to-frame deltas: stationary ~10-50, shake ~100-2000
+                # Use logarithmic-like scaling to handle wide range
+                if shake_delta < 20:
+                    # Very stable - almost no shake
+                    shake_raw = 0
+                elif shake_delta < 100:
+                    # Minimal movement - map 20-100 to 0-20%
+                    shake_raw = (shake_delta - 20) / 4.0
+                elif shake_delta < 500:
+                    # Light to moderate shake - map 100-500 to 20-50%
+                    shake_raw = 20 + (shake_delta - 100) * 0.075
+                else:
+                    # Strong shake - map 500+ to 50-100%
+                    shake_raw = 50 + min((shake_delta - 500) * 0.05, 50)
+                
+                # Cap at 100
+                shake_raw = min(shake_raw, 100)
+                
+                # Smooth but responsive
+                self.arduino_activity = 0.5 * self.arduino_activity + 0.5 * shake_raw
+            else:
+                # First reading - no previous data
+                self.arduino_activity = 0
+            
+            # Store current reading for next comparison
+            self._prev_accel = (x, y, z)
+
             # Update gravity based on Arduino acceleration
             self.gravity = 9.8 * scale_factor
             
+            # Update labels to show shake intensity
             self.arduino_data_label.text = (
-                f"Arduino X: {x:.2f}\n"
-                f"Arduino Y: {y:.2f}\n"
-                f"Arduino Z: {z:.2f}\n"
-                f"Gravity Scale: {scale_factor:.2f}"
+                f"Arduino X: {x:.0f}\n"
+                f"Arduino Y: {y:.0f}\n"
+                f"Arduino Z: {z:.0f}\n"
+                f"Shake Intensity: {self.arduino_activity:.0f}%"
             )
             
+            # Feed shake intensity to graph along with raw values
             if self.arduino_graph:
-                self.arduino_graph.feed_arduino(x, y, z)
-
-            # Store Arduino activity for later use in speedometer calculation
-            # Don't directly set target here - let update_simulation_metrics combine it
-            self.arduino_activity = min((accel_magnitude / 16384.0) * 100, 100)
+                self.arduino_graph.feed_arduino(x, y, z, self.arduino_activity)
 
             # Throttle logging to ~1 Hz to avoid console flood
             self._arduino_log_accum += dt

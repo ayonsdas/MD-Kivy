@@ -57,9 +57,10 @@ class PerformanceMonitor:
         # Normalize energy to 0-20 range (assuming typical total_energy 0-1000)
         energy_score = min(total_energy / 50.0, 20)
         
-        # Arduino adds processing overhead (reading sensor, updating display)
-        # Scale: 0-30 based on Arduino activity
-        arduino_score = arduino_activity * 0.3
+        # Arduino adds significant processing overhead (reading sensor, updating display)
+        # Scale: 0-50 based on Arduino activity (increased from 0.3 to 0.5 multiplier)
+        # Strong shaking should visibly increase speedometer
+        arduino_score = arduino_activity * 0.5
         
         # Combine all factors
         simulation_load = (molecule_score + gravity_score + epsilon_score + 
