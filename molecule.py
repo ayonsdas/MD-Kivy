@@ -54,15 +54,15 @@ class Molecule(Widget):
             self.arrow_color = Color(0, 0, 1, 1)  # Blue for initial arrow color
             self.arrow_line = Line(points=[], width=4 * self.radius / 20)  # Arrow to represent force
 
-    def move(self, delta):
+    def move(self, delta):   # For Verlet integration
         
         self.fix_force()
-        
+        ####  ## Verlet integration
         self.pos = self.total_velocity * delta + 0.5 * self.total_force * (delta ** 2) + self.pos
         self.molecule_shape.pos = (self.pos[0] - self.radius, self.pos[1] - self.radius) # Update the molecule's position in the canvas
         self.bounce_off_walls()
         
-        self.total_velocity += self.total_force * delta
+        self.total_velocity += self.total_force * delta   #can chnage velocity for the testing purposes
         self.fix_speed()
         
         # print(self.total_force.length())
@@ -70,7 +70,7 @@ class Molecule(Widget):
         self.update_color_based_on_speed()
         self.update_force_arrow()
         
-    def move_nonVerlet(self):
+    def move_nonVerlet(self): # For Verlet integration
         
         self.total_velocity += self.total_force
         self.fix_speed()

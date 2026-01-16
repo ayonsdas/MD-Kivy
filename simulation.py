@@ -9,45 +9,168 @@ from kivy.uix.switch import Switch
 from kivy.uix.spinner import Spinner
 from kivy.uix.image import Image
 from kivy.uix.screenmanager import Screen, ScreenManager
+from kivy.uix.widget import Widget
 from kivy.core.window import Window
-from kivy.graphics import Color, Ellipse, Rectangle, Line
+from kivy.graphics import Color, Ellipse, Rectangle, Line, PushMatrix, PopMatrix, Translate
 from game_layout import GameLayout
 from HoverItem import HoverItem
 from TextBlurb import TextBlurb
 from CustomSlider import CustomSlider
 from SliderBox import SliderBox
 from SpinnerBox import SpinnerBox
+from usage_graph import CPUUsageGraph
+from performance_monitor import PerformanceMonitor
+from kivy.uix.anchorlayout import AnchorLayout
+from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.boxlayout import BoxLayout
+from usage_graph import CPUUsageGraph  # Import Graph
+from performance_monitor import PerformanceMonitor  # Import CPU Monitor
+from memory_usage import MemoryUsageGraph  # 
+from speedometer import Speedometer  # Import Speedometer
+from game_layout import GameLayout
+from performance_monitor import PerformanceMonitor
+from arduino_performance_graph import ArduinoGraph
+from kivy.clock import Clock 
+from kivy.metrics import mm
+
+Clock.max_iteration = 1000
+
 
 class WindowManager(ScreenManager):
     pass
 
 
-class GameScreen(Screen):
-    
-    def __init__(self, **kwargs):
-        super(Screen, self).__init__(**kwargs)
-        
-        self.name = "GameScreen"
-        
-        # Root layout for the entire screen
-        self.root = FloatLayout()
 
-        # Add a grey background to cover the entire UI
+# 
+class GameScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        self.name = "GameScreen"
+
+        # Create Performance Monitor
+        self.monitor = PerformanceMonitor()
+
+#        layout for the entire screen
+        self.root = FloatLayout(size_hint=(1, 1), pos_hint={"x": 0, "y": 0})
+
+#        background
         self.add_background(self.root)
 
-        # Create the game area
-        self.game_area = GameLayout(size_hint=(0.8, 0.6), pos_hint={'center_x': 0.5, 'center_y': 0.6})
+#        Arduino graph first
+        self.arduino_graph = ArduinoGraph()
 
-        # Add the game area to the root layout
+#        GameLayout with both monitor and arduino graph <== make it glow like speedometer
+        self.game_area = GameLayout(
+            performance_monitor=self.monitor,
+            arduino_graph=self.arduino_graph,
+            size_hint=(0.7, 0.6),
+            pos_hint={'x': 0.12, 'center_y': 0.6}
+        )
+
+#        GameLayout to root
         self.root.add_widget(self.game_area)
-    
-        # Add the preset selector spinner in the control section
+
+        # ------------------ RIGHT SIDE PANEL (RESPONSIVE) -------------------
+        # Use FloatLayout with pos_hint for screen-size independent positioning
+        
+        # Speedometer (top right) - larger size, keep circular
+        self.speedometer = Speedometer(performance_monitor=self.monitor)
+        # Using same proportion for width and height to maintain circular shape
+        self.speedometer.size_hint = (0.25, 0.25)  # Bigger and circular (increased from 0.20)
+        self.speedometer.pos_hint = {'right': 1.035, 'top': 0.95}  # Moved more right to perfectly center with label
+        self.root.add_widget(self.speedometer)
+
+        # CPU Usage Label (below speedometer, centered)
+        self.cpu_usage_label = Label(
+            text="[b]CPU % Usage[/b]",
+            markup=True,
+            font_size=Window.height * 0.032,  # 3.2% of screen height (much larger)
+            color=(1, 1, 1, 1),
+            size_hint=(0.15, 0.05),
+            pos_hint={'right': 0.99, 'top': 0.68},
+            halign='center',
+            valign='middle'
+        )
+        self.cpu_usage_label.bind(size=self.cpu_usage_label.setter('text_size'))
+        self.root.add_widget(self.cpu_usage_label)
+
+        # Arduino Graph (below CPU label)
+        self.arduino_graph.size_hint = (0.15, 0.2)
+        self.arduino_graph.pos_hint = {'right': 0.99, 'top': 0.62}
+        self.root.add_widget(self.arduino_graph)
+
+        # Arduino Graph Label (below graph, centered)
+        self.arduino_graph_label = Label(
+            text="[b]Arduino Energy Input[/b]",
+            markup=True,
+            font_size=Window.height * 0.030,  # 3.0% of screen height (much larger)
+            color=(1, 1, 1, 1),
+            size_hint=(0.15, 0.05),
+            pos_hint={'right': 0.99, 'top': 0.41},
+            halign='center',
+            valign='middle'
+        )
+        self.arduino_graph_label.bind(size=self.arduino_graph_label.setter('text_size'))
+        self.root.add_widget(self.arduino_graph_label)
+
+        # Arduino label: get it from the same game_area
+        self.arduino_label = self.game_area.arduino_data_label
+        self.root.add_widget(self.arduino_label)  # to root, not inside game_area
+
+        # the preset selector spinner in the control section
         self.add_preset_spinner(self.root)
 
-        # Add other UI elements
+        # other UI elements (Sliders, buttons, etc.)
         self.add_ui_elements(self.root)
+
+        # Arduino connection status UI (bottom-left)
+        # Arduino status with glowing text (no background box)
+        self.arduino_status_container = FloatLayout(
+            size_hint=(0.15, 0.035),
+            pos_hint={'x': 0.005, 'y': 0.005}
+        )
         
+        # Status indicator dot with outline for glow effect
+        self.arduino_indicator = Label(
+            text="●",
+            size_hint=(0.1, 1),
+            pos_hint={'x': 0, 'center_y': 0.5},
+            color=(1, 0.3, 0.3, 1),  # Red for disconnected
+            font_size='16sp',
+            halign='center',
+            valign='middle',
+            outline_width=2,
+            outline_color=(1, 0.3, 0.3, 0.5)  # Glow effect
+        )
+        self.arduino_status_container.add_widget(self.arduino_indicator)
+        
+        # Status text with outline for glow effect
+        self.arduino_status_label = Label(
+            text="Arduino: connecting…",
+            size_hint=(0.9, 1),
+            pos_hint={'x': 0.1, 'center_y': 0.5},
+            color=(0.9, 0.9, 0.9, 1),
+            font_size='11sp',
+            halign='left',
+            valign='middle',
+            bold=True,
+            outline_width=1,
+            outline_color=(0.5, 0.5, 0.5, 0.3)  # Subtle glow
+        )
+        self.arduino_status_label.bind(size=self.arduino_status_label.setter('text_size'))
+        self.arduino_status_container.add_widget(self.arduino_status_label)
+        
+        self.root.add_widget(self.arduino_status_container)
+
+        # Add Everything to the Screen
         self.add_widget(self.root)
+
+        # Initial status reflects current connection
+        self._update_arduino_status_label()
+        # Periodic light refresh of status
+        Clock.schedule_interval(lambda dt: self._update_arduino_status_label(), 2)
+
 
     def add_background(self, root):
         """Add a grey background and bind its size/position to root."""
@@ -65,14 +188,13 @@ class GameScreen(Screen):
         """Add the preset spinner to the bottom control section."""
         self.spinner_row = BoxLayout(orientation='horizontal', size_hint=(0.4, None), height=40, pos_hint={'center_x': 0.3, 'y': 0.085})
 
-        # Label for the preset spinner
-        # preset_label = Label(text="Presets:", size_hint=(0.4, 1), font_size=14)
-        self.preset_label = HoverItem(size_hint=(1, 1), 
-                                      hoverSource="Graphics/Presets.png", 
-                                      defaultSource="Graphics/Presets.png", 
-                                      function=lambda x : None)
-        
-        self.spinner_row.add_widget(self.preset_label)
+        # Label for the preset spinner - REMOVED (redundant with new Presets button)
+        # preset_label = Label(text="Presets:", size_hint=(0.4, 1, size_hint=(None, None)), font_size=14)
+        # self.preset_label = HoverItem(size_hint=(1, 1), 
+        #                               hoverSource="Graphics/Presets.png", 
+        #                               defaultSource="Graphics/Presets.png", 
+        #                               function=lambda x : None)
+        # self.spinner_row.add_widget(self.preset_label)
 
         # Spinner for presets
         # preset_spinner = Spinner(
@@ -107,9 +229,11 @@ class GameScreen(Screen):
 
     def add_ui_elements(self, root):
         """Add sliders, switches, and other UI elements."""
-        ui_panel = self.create_sliders()
+        self.ui_panel = self.create_sliders()
+        self.ui_panel.opacity = 0  # Hidden by default
+        self.ui_panel_visible = False  # Track visibility state
         bottom_row = self.create_bottom_controls()
-        root.add_widget(ui_panel)
+        root.add_widget(self.ui_panel)
         root.add_widget(bottom_row)
         self.add_stat_labels(root)
         
@@ -137,11 +261,60 @@ class GameScreen(Screen):
         Window.bind(mouse_pos=self.mPos)
         root.add_widget(self.cursOr)
 
+    def _update_arduino_status_label(self):
+        try:
+            ard = self.game_area.arduino
+            if ard and ((getattr(ard, 'serial_connection', None) and ard.serial_connection.is_open) or getattr(ard, 'sock', None)):
+                info = getattr(ard, 'connection_info', None)
+                mode = 'Wi‑Fi' if getattr(ard, 'sock', None) else 'Serial'
+                if not info:
+                    info = getattr(ard, 'port', 'unknown')
+                self.arduino_status_label.text = f"Arduino: Connected ({mode})"
+                # Green glowing text
+                self.arduino_status_label.color = (0.4, 1, 0.4, 1)
+                self.arduino_status_label.outline_color = (0.2, 0.8, 0.2, 0.6)
+                # Green glowing dot
+                self.arduino_indicator.color = (0.4, 1, 0.4, 1)
+                self.arduino_indicator.outline_color = (0.2, 0.8, 0.2, 0.7)
+            else:
+                self.arduino_status_label.text = "Arduino: Not Connected"
+                # Red glowing text
+                self.arduino_status_label.color = (1, 0.5, 0.5, 1)
+                self.arduino_status_label.outline_color = (0.8, 0.2, 0.2, 0.5)
+                # Red glowing dot
+                self.arduino_indicator.color = (1, 0.3, 0.3, 1)
+                self.arduino_indicator.outline_color = (0.8, 0.2, 0.2, 0.6)
+        except Exception:
+            self.arduino_status_label.text = "Arduino: Not Connected"
+            # Red glowing text
+            self.arduino_status_label.color = (1, 0.5, 0.5, 1)
+            self.arduino_status_label.outline_color = (0.8, 0.2, 0.2, 0.5)
+            # Red glowing dot
+            self.arduino_indicator.color = (1, 0.3, 0.3, 1)
+            self.arduino_indicator.outline_color = (0.8, 0.2, 0.2, 0.6)
+
+    def retry_arduino_connect(self):
+        # Close existing, attempt to re-open without blocking UI
+        try:
+            if self.game_area.arduino:
+                self.game_area.arduino.close()
+        except Exception:
+            pass
+
+        from arduino_reading import ArduinoReading
+        try:
+            self.game_area.arduino = ArduinoReading()
+            print(f"[INFO] Arduino reconnected on {self.game_area.arduino.port}")
+        except Exception as e:
+            print(f"[WARNING] Arduino reconnect failed: {e}")
+            self.game_area.arduino = None
+        self._update_arduino_status_label()
+
 
     def mPos(self, window, pos):
         self.cursOr.pos = (pos[0] - Window.width * 0.01, pos[1] - Window.height * 0.01)
 
-
+    # Defines call Back Function HEre for Slider Box!!!!
     def create_sliders(self):
         """Create the slider UI for gravity, delta, sigma, epsilon, speed, and size."""
         ui_panel = GridLayout(cols=3,
@@ -205,13 +378,116 @@ class GameScreen(Screen):
         button.source = button.hoverSource if button.use else button.defaultSource
         text.toggle_visibility()
 
+    def toggle_sliders(self):
+        """Toggle visibility of the slider panel."""
+        if self.ui_panel_visible:
+            self.ui_panel.opacity = 0  # Hide
+            self.ui_panel_visible = False
+            self.remove_glow_effect()
+            # Keep hover disabled (no white square)
+            self.presets_button.hoverSource = "Graphics/Presets.png"
+        else:
+            self.ui_panel.opacity = 1  # Show
+            self.ui_panel_visible = True
+            self.add_glow_effect()
+            # Keep hover disabled to show glow properly
+            self.presets_button.hoverSource = "Graphics/Presets.png"
+            # Force button to show default image
+            self.presets_button.source = self.presets_button.defaultSource
+    
+    def add_glow_effect(self):
+        """Add a glowing blue-purple gradient effect to the presets button."""
+        from kivy.graphics import Color, Ellipse, PushMatrix, PopMatrix, Rotate
+        from kivy.animation import Animation
+        
+        # Store glow elements for updating
+        self.glow_elements = []
+        
+        # Create glowing gradient layers around the button using ellipses for softer edges
+        with self.presets_button.canvas.before:
+            # Multiple layers of ellipses to create a gradient glow effect
+            
+            # Outer glow - deep purple (largest, most transparent)
+            Color(0.6, 0.0, 1.0, 0.15)  # Purple
+            glow1 = Ellipse(
+                pos=(self.presets_button.x - 15, self.presets_button.y - 15),
+                size=(self.presets_button.width + 30, self.presets_button.height + 30)
+            )
+            self.glow_elements.append(('ellipse', glow1, 15))
+            
+            # Second layer - purple
+            Color(0.5, 0.2, 0.9, 0.2)
+            glow2 = Ellipse(
+                pos=(self.presets_button.x - 12, self.presets_button.y - 12),
+                size=(self.presets_button.width + 24, self.presets_button.height + 24)
+            )
+            self.glow_elements.append(('ellipse', glow2, 12))
+            
+            # Third layer - blue-purple
+            Color(0.3, 0.3, 1.0, 0.25)
+            glow3 = Ellipse(
+                pos=(self.presets_button.x - 9, self.presets_button.y - 9),
+                size=(self.presets_button.width + 18, self.presets_button.height + 18)
+            )
+            self.glow_elements.append(('ellipse', glow3, 9))
+            
+            # Fourth layer - blue
+            Color(0.2, 0.5, 1.0, 0.3)
+            glow4 = Ellipse(
+                pos=(self.presets_button.x - 6, self.presets_button.y - 6),
+                size=(self.presets_button.width + 12, self.presets_button.height + 12)
+            )
+            self.glow_elements.append(('ellipse', glow4, 6))
+            
+            # Fifth layer - light blue
+            Color(0.4, 0.7, 1.0, 0.35)
+            glow5 = Ellipse(
+                pos=(self.presets_button.x - 3, self.presets_button.y - 3),
+                size=(self.presets_button.width + 6, self.presets_button.height + 6)
+            )
+            self.glow_elements.append(('ellipse', glow5, 3))
+            
+            # Innermost layer - bright cyan
+            Color(0.5, 0.8, 1.0, 0.4)
+            glow6 = Ellipse(
+                pos=(self.presets_button.x - 1, self.presets_button.y - 1),
+                size=(self.presets_button.width + 2, self.presets_button.height + 2)
+            )
+            self.glow_elements.append(('ellipse', glow6, 1))
+        
+        # Bind position updates
+        self.presets_button.bind(pos=self.update_glow_position, size=self.update_glow_position)
+    
+    def update_glow_position(self, *args):
+        """Update glow position when button moves."""
+        if hasattr(self, 'glow_elements'):
+            for glow_type, glow_shape, offset in self.glow_elements:
+                glow_shape.pos = (self.presets_button.x - offset, self.presets_button.y - offset)
+                glow_shape.size = (self.presets_button.width + offset * 2, self.presets_button.height + offset * 2)
+    
+    def remove_glow_effect(self):
+        """Remove the glowing effect from the presets button."""
+        if hasattr(self, 'glow_elements'):
+            self.presets_button.canvas.before.clear()
+            self.glow_elements = []
+            self.presets_button.unbind(pos=self.update_glow_position, size=self.update_glow_position)
 
     def create_bottom_controls(self):
-        """Create the bottom controls with switches and buttons."""
-        bottom_row = BoxLayout(orientation='horizontal', size_hint=(0.9, None), height=50, pos_hint={'center_x': 0.5, 'center_y': 0.05})
+        """Create the bottom controls with switches and buttons (responsive sizing)."""
+        # Make button row height scale with screen - 8% of screen height
+        button_height = Window.height * 0.08
+        bottom_row = BoxLayout(
+            orientation='horizontal',
+            size_hint=(0.9, None),
+            height=button_height,
+            pos_hint={'center_x': 0.5, 'center_y': 0.05}
+        )
 
         # forces_container, _ = self.create_forces_switch()
         # forces_visible_container, _ = self.create_forces_visible_switch()
+        self.presets_button = self.create_hover_button("Presets", self.toggle_sliders)
+        # Disable hover effect initially - keep it same as default to show glow properly
+        self.presets_button.hoverSource = "Graphics/Presets.png"
         self.use_forces_button = self.create_hover_button("Forces-Off", self.toggle_intermolecular_forces)
         self.see_forces_button = self.create_hover_button("Hide-Forces", self.toggle_forces_visible)
         self.clear_button = self.create_hover_button("Clear", self.clear_game_area)
@@ -221,6 +497,7 @@ class GameScreen(Screen):
 
         # bottom_row.add_widget(forces_container)
         # bottom_row.add_widget(forces_visible_container)
+        bottom_row.add_widget(self.presets_button)
         bottom_row.add_widget(self.use_forces_button)
         bottom_row.add_widget(self.see_forces_button)
         bottom_row.add_widget(self.start_stop_button)
@@ -256,10 +533,10 @@ class GameScreen(Screen):
         return box, slider
 
     def create_hover_button(self, label, callback):
-        """Helper to create buttons with hover effects."""
+        """Helper to create buttons with hover effects (responsive sizing)."""
+        # Buttons fill their container proportionally
         return HoverItem(
-            size_hint=(1, None),
-            height=50,
+            size_hint=(1, 1),
             hoverSource=f"Graphics/{label}_Highlighted.png",
             defaultSource=f"Graphics/{label}.png",
             function=lambda x: callback()
@@ -288,6 +565,19 @@ class GameScreen(Screen):
             self.see_forces_button.defaultSource="Graphics/Hide-Forces.png"
             self.see_forces_button.source = self.see_forces_button.hoverSource if self.see_forces_button.use else self.see_forces_button.defaultSource
         self.game_area.toggle_forces_visible()
+
+    # toggle function that could be used for an update of the keys | most recent update for testing 
+    # LAUNCH FROM THE TERMINAL
+    # def toggle_combine(self):
+        
+    #     # test an update here
+    #     self.start_stop_button.hover.hoverSource="graphics/Start_Highlight.png"
+    #     self.start
+    #     self.start_stop_button.source
+    #     # toggle combine mode stuff
+    #     self.uase._verlet = not self.use
+
+        return self.switch.start_stop_button.hoverSource if self.add_background else self.start_stop_button
 
     def toggle_simulation(self):
         """Toggle the simulation state."""
@@ -330,7 +620,7 @@ class GameScreen(Screen):
     # def create_switch(self, label_text, callback):
     #     """Helper to create labeled switches."""
     #     container = BoxLayout(orientation='horizontal', size_hint=(0.6, None), height=50)
-    #     label = Label(text=label_text, size_hint=(0.6, 1))
+    #     label = Label(text=label_text, size_hint=(0.6, 1, size_hint=(None, None)))
     #     switch = Switch(active=True, size_hint=(0.4, 1))
     #     switch.bind(active=callback)
     #     container.add_widget(label)
@@ -338,10 +628,28 @@ class GameScreen(Screen):
     #     return container, switch
 
     def add_stat_labels(self, root):
-        """Add labels to display simulation stats."""
-        self.game_area.total_energy_label = Label(text="Total Energy: 0", size_hint=(0.2, 0.1), pos_hint={'center_x': 0.18, 'center_y': 0.95})
-        self.game_area.temperature_label = Label(text="Temperature: 0", size_hint=(0.2, 0.1), pos_hint={'center_x': 0.51, 'center_y': 0.95})
-        self.game_area.pressure_label = Label(text="Pressure: 0", size_hint=(0.2, 0.1), pos_hint={'center_x': 0.84, 'center_y': 0.95})
+        """Add labels to display simulation stats with responsive font sizes."""
+        self.game_area.total_energy_label = Label(
+            text="Total Energy: 0",
+            size_hint=(0.2, 0.1),
+            pos_hint={'center_x': 0.18, 'center_y': 0.95},
+            font_size=Window.height * 0.035,  # 3.5% of screen height (much larger)
+            bold=True
+        )
+        self.game_area.temperature_label = Label(
+            text="Temperature: 0",
+            size_hint=(0.2, 0.1),
+            pos_hint={'center_x': 0.51, 'center_y': 0.95},
+            font_size=Window.height * 0.035,  # 3.5% of screen height (much larger)
+            bold=True
+        )
+        self.game_area.pressure_label = Label(
+            text="Pressure: 0",
+            size_hint=(0.2, 0.1),
+            pos_hint={'center_x': 0.84, 'center_y': 0.95},
+            font_size=Window.height * 0.035,  # 3.5% of screen height (much larger)
+            bold=True
+        )
 
         root.add_widget(self.game_area.total_energy_label)
         root.add_widget(self.game_area.temperature_label)
