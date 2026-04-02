@@ -57,7 +57,7 @@ class GameLayout(Widget):
 
 
         with self.canvas.before:
-            Color(0, 0, 0, 1)  # Set background color of the game area (black)
+            Color(0.01, 0.01, 0.04, 1)  # Very dark navy — richer than pure black
             self.rect = Rectangle(pos=self.pos, size=self.size)
         self.bind(pos=self.update_rect, size=self.update_rect)
 
@@ -96,11 +96,22 @@ class GameLayout(Widget):
         self._base_interval = 1 / 30.0
         self._current_interval = self._base_interval
 
+        # remember the last radius we used - fix_radius clears and redraws the whole canvas
+        # which is really slow, so we only call it when the size actually changes
+        self._last_molecule_radius = 0.0
+
         # Keyboard should be set up once
         self._keyboard_initialized = False
 
+        # garbage collection runs every 30 seconds - only scheduled ONCE here, not inside monitor_performance
+        # (monitor_performance runs every second so putting it there created hundreds of GC timers!!)
+        Clock.schedule_interval(lambda dt: gc.collect(), 30)
+
         # Schedule gentle governor checks
         Clock.schedule_interval(self._governor_update, 0.5)
+
+        # mission manager gets connected from simulation.py after everything is set up
+        self.mission_manager = None
 
         self.bonds = {}  # Dictionary to store Line objects for each bond
         # print(self.molecule_radius)
@@ -176,7 +187,7 @@ class GameLayout(Widget):
             self.setup_keyboard()
             self._keyboard_initialized = True
         
-        Clock.schedule_interval(lambda dt: gc.collect(), 5)
+        # GC is already set up in __init__, dont add another one here every second!
         
     def setup_keyboard(self):
         """Initialize keyboard binding for slider controls."""
@@ -215,6 +226,20 @@ class GameLayout(Widget):
             self.adjust_size(0.05)
         elif key == self.key_mapping['size_decrease']:
             self.adjust_size(-0.05)
+        # arrow keys for Makey Makey (works with regular keyboard too)
+        elif key == 'up':
+            self.adjust_gravity(0.2)
+        elif key == 'down':
+            self.adjust_gravity(-0.2)
+        elif key == 'right':
+            self.adjust_epsilon(0.1)
+        elif key == 'left':
+            self.adjust_epsilon(-0.1)
+        elif key == 'spacebar':
+            # space spawns a molecule right in the middle of the screen
+            cx = self.pos[0] + self.size[0] / 2
+            cy = self.pos[1] + self.size[1] / 2
+            self.spawn_molecule_at_touch(type('_T', (), {'pos': (cx, cy)})())
         return True
 
     def adjust_gravity(self, change):
@@ -267,7 +292,7 @@ class GameLayout(Widget):
 
             # Create a Line object for the bond
             with self.canvas:
-                line = Line(points=[molecule1.center_x, molecule1.center_y, molecule2.center_x, molecule2.center_y], width=1)
+                line = Line(points=[molecule1.center_x, molecule1.center_y, molecule2.center_x, molecule2.center_y], width=2)
                 # Store the line associated with this bond in bond_lines
                 self.bonds[(molecule1, molecule2)] = line
 
@@ -311,9 +336,8 @@ class GameLayout(Widget):
 
     def update_bond_lines(self):
         """Update the positions of all bond lines."""
-        # Ensure the color is white when updating bond lines
         with self.canvas:
-            Color(1, 1, 1, 1)  # Set the color to white
+            Color(0.4, 0.85, 1.0, 0.65)  # Cyan glow instead of flat white
             for bond in self.bonds:
                 line = self.bonds[bond]
                 line.points = [bond[0].center_x, bond[0].center_y, bond[1].center_x, bond[1].center_y]
@@ -548,9 +572,16 @@ class GameLayout(Widget):
 
         for molecule in self.molecules:
             molecule.reset_total_force()
-            molecule.add_force(Vector(0, -self.gravity))  
-            
-        self.molecule_radius = self.size[0] * self.molecule_radius_ratio * self.size_factor
+            molecule.add_force(Vector(0, -self.gravity))
+
+        # only resize molecules when the radius actually changes (slider moved or window resized)
+        # fix_radius was being called every frame for every molecule before - thats why it was so laggy!
+        new_radius = self.size[0] * self.molecule_radius_ratio * self.size_factor
+        if abs(new_radius - self._last_molecule_radius) > 0.1:
+            self.molecule_radius = new_radius
+            self._last_molecule_radius = new_radius
+            for mol in self.molecules:
+                mol.fix_radius(self.molecule_radius)
         self.apply_spring_force()
 
         self.frame_counter += 1
@@ -575,7 +606,6 @@ class GameLayout(Widget):
 
         for i in range(len(self.molecules)):
             molecule1 = self.molecules[i]
-            molecule1.fix_radius(self.molecule_radius)
             for j in range(i + 1, len(self.molecules)):
                 molecule2 = self.molecules[j]
                 # Cheap broad-phase: skip expensive checks when boxes don't overlap
@@ -629,14 +659,13 @@ class GameLayout(Widget):
 
         # Update labels with calculated, realistic values
         num_molecules = len(self.molecules) if len(self.molecules) > 0 else 1
-        
+        avg_temperature = temperature / num_molecules  # available to mission tick every frame
+
         if self.frame_counter % self.ui_update_every == 0:
             # Total Energy: arbitrary units (AU), realistic scale 0-1000
             self.total_energy_label.text = f"Total Energy: {total_energy:.2f}"
-            
+
             # Temperature: Kelvin-like units, realistic molecular scale
-            # Typical range: 0-500K depending on molecular motion
-            avg_temperature = temperature / num_molecules
             self.temperature_label.text = f"Temperature: {avg_temperature:.2f}"
             
             # Pressure: arbitrary units (AU), represents wall collisions
@@ -670,6 +699,10 @@ class GameLayout(Widget):
         )
         # Accumulate dt for any time-based features
         self._sec_accum += dt
+
+        # tell the mission system whats happening this frame (only if a mission is running)
+        if self.mission_manager and self.mission_manager.state == 'active':
+            self.mission_manager.tick(dt, avg_temperature, self.performance_monitor.get_cpu_usage(), len(self.molecules))
 
 
         # self.performance_monitor.trigger_boost(15)  # Boost per update

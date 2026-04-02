@@ -30,8 +30,9 @@ from speedometer import Speedometer  # Import Speedometer
 from game_layout import GameLayout
 from performance_monitor import PerformanceMonitor
 from arduino_performance_graph import ArduinoGraph
-from kivy.clock import Clock 
+from kivy.clock import Clock
 from kivy.metrics import mm
+from makey_makey import MakeyMakeyMonitor, KEY_LEGEND
 
 Clock.max_iteration = 1000
 
@@ -168,14 +169,76 @@ class GameScreen(Screen):
 
         # Initial status reflects current connection
         self._update_arduino_status_label()
-        # Periodic light refresh of status
         Clock.schedule_interval(lambda dt: self._update_arduino_status_label(), 2)
 
+        # Makey Makey - checks in the background every 2 seconds if one is plugged in
+        # shows a status dot at the bottom left and a key legend when connected
+        self.makey = MakeyMakeyMonitor()
+        self._build_makey_status(self.root)
+        Clock.schedule_interval(lambda dt: self._refresh_makey_ui(), 2)
+
+
+    def _build_makey_status(self, root):
+        # two labels sitting above the arduino status, no fancy overlay so it doesnt block clicks
+        from kivy.uix.floatlayout import FloatLayout
+
+        container = FloatLayout(
+            size_hint=(0.22, 0.035),
+            pos_hint={'x': 0.005, 'y': 0.042}
+        )
+
+        self.makey_dot = Label(
+            text='●', size_hint=(0.08, 1), pos_hint={'x': 0, 'center_y': 0.5},
+            color=(0.45, 0.45, 0.45, 1), font_size='16sp',
+            halign='center', valign='middle',
+            outline_width=2, outline_color=(0.3, 0.3, 0.3, 0.4)
+        )
+        self.makey_label = Label(
+            text='Makey Makey: scanning…',
+            size_hint=(0.92, 1), pos_hint={'x': 0.08, 'center_y': 0.5},
+            color=(0.6, 0.6, 0.6, 1), font_size='11sp',
+            halign='left', valign='middle', bold=True,
+            outline_width=1, outline_color=(0.3, 0.3, 0.3, 0.2)
+        )
+        self.makey_label.bind(size=self.makey_label.setter('text_size'))
+
+        # Key legend — plain multiline label, shown only when connected
+        self.makey_legend_label = Label(
+            text='', markup=True,
+            size_hint=(0.22, 0.20),
+            pos_hint={'x': 0.005, 'y': 0.08},
+            font_size='10sp',
+            color=(0.5, 0.85, 1, 0.9),
+            halign='left', valign='top'
+        )
+        self.makey_legend_label.bind(size=self.makey_legend_label.setter('text_size'))
+
+        container.add_widget(self.makey_dot)
+        container.add_widget(self.makey_label)
+        root.add_widget(container)
+        root.add_widget(self.makey_legend_label)
+
+    def _refresh_makey_ui(self):
+        if self.makey.connected:
+            self.makey_dot.color         = (0.3, 0.85, 1, 1)
+            self.makey_dot.outline_color = (0.1, 0.6, 0.9, 0.7)
+            self.makey_label.text        = 'Makey Makey: Connected'
+            self.makey_label.color       = (0.4, 0.9, 1, 1)
+            lines = '[b]Makey Makey keys:[/b]\n' + '\n'.join(
+                f'{k}  →  {a}' for k, a in KEY_LEGEND
+            )
+            self.makey_legend_label.text = lines
+        else:
+            self.makey_dot.color         = (0.45, 0.45, 0.45, 1)
+            self.makey_dot.outline_color = (0.3, 0.3, 0.3, 0.3)
+            self.makey_label.text        = 'Makey Makey: Not Connected'
+            self.makey_label.color       = (0.55, 0.55, 0.55, 1)
+            self.makey_legend_label.text = ''
 
     def add_background(self, root):
         """Add a grey background and bind its size/position to root."""
         with root.canvas.before:
-            Color(0.1, 0.1, 0.1, 1)
+            Color(0.04, 0.04, 0.07, 1)  # Dark navy — pairs with sphere glow colours
             self.ui_rect = Rectangle(pos=root.pos, size=root.size)
         root.bind(pos=self.update_ui_background, size=self.update_ui_background)
 
@@ -566,18 +629,7 @@ class GameScreen(Screen):
             self.see_forces_button.source = self.see_forces_button.hoverSource if self.see_forces_button.use else self.see_forces_button.defaultSource
         self.game_area.toggle_forces_visible()
 
-    # toggle function that could be used for an update of the keys | most recent update for testing 
-    # LAUNCH FROM THE TERMINAL
-    # def toggle_combine(self):
-        
-    #     # test an update here
-    #     self.start_stop_button.hover.hoverSource="graphics/Start_Highlight.png"
-    #     self.start
-    #     self.start_stop_button.source
-    #     # toggle combine mode stuff
-    #     self.uase._verlet = not self.use
-
-        return self.switch.start_stop_button.hoverSource if self.add_background else self.start_stop_button
+    # toggle_combine was removed (dead code with broken return statement)
 
     def toggle_simulation(self):
         """Toggle the simulation state."""
@@ -633,22 +685,25 @@ class GameScreen(Screen):
             text="Total Energy: 0",
             size_hint=(0.2, 0.1),
             pos_hint={'center_x': 0.18, 'center_y': 0.95},
-            font_size=Window.height * 0.035,  # 3.5% of screen height (much larger)
-            bold=True
+            font_size=Window.height * 0.035,
+            bold=True,
+            color=(1.0, 0.6, 0.2, 1),   # warm orange
         )
         self.game_area.temperature_label = Label(
             text="Temperature: 0",
             size_hint=(0.2, 0.1),
             pos_hint={'center_x': 0.51, 'center_y': 0.95},
-            font_size=Window.height * 0.035,  # 3.5% of screen height (much larger)
-            bold=True
+            font_size=Window.height * 0.035,
+            bold=True,
+            color=(1.0, 0.32, 0.55, 1), # hot pink — matches molecule fast-colour
         )
         self.game_area.pressure_label = Label(
             text="Pressure: 0",
             size_hint=(0.2, 0.1),
             pos_hint={'center_x': 0.84, 'center_y': 0.95},
-            font_size=Window.height * 0.035,  # 3.5% of screen height (much larger)
-            bold=True
+            font_size=Window.height * 0.035,
+            bold=True,
+            color=(0.35, 0.85, 1.0, 1), # cyan — matches bond / arrow colour
         )
 
         root.add_widget(self.game_area.total_energy_label)
