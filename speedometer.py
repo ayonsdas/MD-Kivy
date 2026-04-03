@@ -68,37 +68,37 @@ class Speedometer(Widget):
         needle_length = radius * 0.8
 
         with self.canvas:
-            # Multi-layer glowing ring (larger radius, softer intensity)
+            # Multi-layer glowing ring — all offsets proportional to radius so they
+            # scale correctly on small (800 p) and large (4K) screens alike.
             pulse = 0.5 + 0.5 * math.sin(time.time() * 2)
-            base_alpha = 0.18 + (cpu_percent / 100) * 0.45 * pulse  # Softer intensity
-            
-            # Outermost glow layer (much larger radius)
+            base_alpha = 0.18 + (cpu_percent / 100) * 0.45 * pulse
+
+            g1 = int(radius * 0.55)   # outermost glow margin
+            g2 = int(radius * 0.41)
+            g3 = int(radius * 0.27)
+            g4 = int(radius * 0.18)
+            g5 = int(radius * 0.09)   # innermost glow margin
+
             Color(r, g, b, base_alpha * 0.35)
-            Ellipse(pos=(square_x - 60, square_y - 60), size=(side + 120, side + 120))
-            
-            # Second glow layer
-            Color(r, g, b, base_alpha * 0.5)
-            Ellipse(pos=(square_x - 45, square_y - 45), size=(side + 90, side + 90))
-            
-            # Third glow layer
+            Ellipse(pos=(square_x - g1, square_y - g1), size=(side + g1 * 2, side + g1 * 2))
+            Color(r, g, b, base_alpha * 0.50)
+            Ellipse(pos=(square_x - g2, square_y - g2), size=(side + g2 * 2, side + g2 * 2))
             Color(r, g, b, base_alpha * 0.65)
-            Ellipse(pos=(square_x - 30, square_y - 30), size=(side + 60, side + 60))
-            
-            # Fourth glow layer
-            Color(r, g, b, base_alpha * 0.8)
-            Ellipse(pos=(square_x - 20, square_y - 20), size=(side + 40, side + 40))
-            
-            # Inner glow layer (brightest)
+            Ellipse(pos=(square_x - g3, square_y - g3), size=(side + g3 * 2, side + g3 * 2))
+            Color(r, g, b, base_alpha * 0.80)
+            Ellipse(pos=(square_x - g4, square_y - g4), size=(side + g4 * 2, side + g4 * 2))
             Color(r, g, b, base_alpha * 0.95)
-            Ellipse(pos=(square_x - 10, square_y - 10), size=(side + 20, side + 20))
+            Ellipse(pos=(square_x - g5, square_y - g5), size=(side + g5 * 2, side + g5 * 2))
 
             # Outer dial
             Color(0.1, 0.3, 0.6, 1)
             Ellipse(pos=(square_x, square_y), size=(side, side))
 
-            # Inner black circle
+            # Inner black circle — border also proportional
+            border = int(radius * 0.09)
             Color(0, 0, 0, 1)
-            Ellipse(pos=(square_x + 10, square_y + 10), size=(side - 20, side - 20))
+            Ellipse(pos=(square_x + border, square_y + border),
+                    size=(side - border * 2, side - border * 2))
 
             # Ticks and labels
             for i in range(11):
@@ -130,17 +130,18 @@ class Speedometer(Widget):
             Color(r, g, 0, 1)
             Line(points=[cx, cy, nx, ny], width=3)
 
-            # Center dot
+            # Center dot — proportional to dial size
+            dot_r = int(radius * 0.055)
             Color(r, g, 0, 1)
-            Ellipse(pos=(cx - 6, cy - 6), size=(12, 12))
+            Ellipse(pos=(cx - dot_r, cy - dot_r), size=(dot_r * 2, dot_r * 2))
 
-        # Move the percent label (adjusted position: down 0.5cm, left 0.1cm)
+        # Percent label: center it on the dial using its own size
         self.percent_label.text = f"{int(cpu_percent)}%"
-        # Move down by ~0.5cm (subtract from y), left by ~0.1cm (subtract from x)
-        self.percent_label.pos = (cx - 21, cy - 20)
-        # Scale font size proportionally to speedometer size (much larger and bold)
-        self.percent_label.font_size = int(side * 0.12)  # 12% of speedometer diameter (increased from 10%)
+        self.percent_label.font_size = int(side * 0.12)
         self.percent_label.bold = True
+        lw = self.percent_label.texture_size[0] if self.percent_label.texture else side * 0.12
+        lh = self.percent_label.texture_size[1] if self.percent_label.texture else side * 0.12
+        self.percent_label.pos = (cx - lw / 2, cy - lh / 2 - int(radius * 0.18))
 
 
 

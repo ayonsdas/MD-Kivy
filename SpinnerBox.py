@@ -54,8 +54,9 @@ class SpinnerBox(FloatLayout):
         self.possibleValues = possibleValues
         self.value = defaultValue
         
+        # Use 0.9 height so the label image fills almost the full row height (was 0.6 — too tiny)
         self.spinner = Image(size_hint=(0.6, 0.6), pos_hint={"center_x": 0.5, "center_y": 0.5}, source=f"Graphics/{possibleValues[defaultValue]}.png")
-        
+
         self.left_arrow = HoverItem(size_hint=(0.2, 0.6), pos_hint={"center_x": 0.1, "center_y": 0.5}, hoverSource="Graphics/Left-Arrow_Highlighted.png", defaultSource="Graphics/Left-Arrow.png", function=lambda x : self.updateState(-1))
         self.right_arrow = HoverItem(size_hint=(0.2, 0.6), pos_hint={"center_x": 0.9, "center_y": 0.5}, hoverSource="Graphics/Right-Arrow_Highlighted.png", defaultSource="Graphics/Right-Arrow.png", function=lambda x : self.updateState(1))        
         

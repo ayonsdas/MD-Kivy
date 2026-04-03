@@ -102,6 +102,9 @@ class GameLayout(Widget):
 
         # Keyboard should be set up once
         self._keyboard_initialized = False
+        # Debounce: track last time each key was processed to prevent rapid-fire freezing
+        self._key_last_press = {}
+        self._key_cooldown = 0.08   # 80 ms minimum between repeat events for the same key
 
         # garbage collection runs every 30 seconds - only scheduled ONCE here, not inside monitor_performance
         # (monitor_performance runs every second so putting it there created hundreds of GC timers!!)
@@ -200,33 +203,54 @@ class GameLayout(Widget):
         self._keyboard = None
 
     def on_key_down(self, keyboard, keycode, text, modifiers):
-        """Handle key press events for controlling sliders."""
+        """Handle key press events for controlling sliders.
+
+        Makey Makey board key layout:
+          Arrow keys (base board / Makey Mouse) : up/down = gravity, left/right = epsilon
+          Player 2 D-pad                        : a=gravity+, s=gravity-, w=gravity+, d=epsilon-
+          Player 2 / Makey Max buttons          : f=sigma-, g=delta-
+          Makey Max full keyboard section       : w/a=gravity+, s=gravity-, d/epsilon-,
+                                                  f=sigma-, g=delta-
+          Space (any board)                     : spawn molecule
+        """
         key = keycode[1]
-        if key == self.key_mapping['gravity_increase']:
+
+        # Debounce — skip if the same key fired too recently (prevents UI freeze on held keys)
+        now = time.monotonic()
+        if now - self._key_last_press.get(key, 0) < self._key_cooldown:
+            return True
+        self._key_last_press[key] = now
+
+        if key == self.key_mapping['gravity_increase']:      # w
             self.adjust_gravity(0.1)
-        elif key == self.key_mapping['gravity_decrease']:
+        elif key == self.key_mapping['gravity_decrease']:    # s
             self.adjust_gravity(-0.1)
-        elif key == self.key_mapping['epsilon_increase']:
+        elif key == self.key_mapping['epsilon_increase']:    # e
             self.adjust_epsilon(0.1)
-        elif key == self.key_mapping['epsilon_decrease']:
+        elif key == self.key_mapping['epsilon_decrease']:    # d
             self.adjust_epsilon(-0.1)
-        elif key == self.key_mapping['sigma_increase']:
+        elif key == self.key_mapping['sigma_increase']:      # r
             self.adjust_sigma(0.05)
-        elif key == self.key_mapping['sigma_decrease']:
+        elif key == self.key_mapping['sigma_decrease']:      # f
             self.adjust_sigma(-0.05)
-        elif key == self.key_mapping['delta_increase']:
+        elif key == self.key_mapping['delta_increase']:      # t
             self.adjust_delta(1 / 60.0)
-        elif key == self.key_mapping['delta_decrease']:
+        elif key == self.key_mapping['delta_decrease']:      # g
             self.adjust_delta(-1 / 60.0)
-        elif key == self.key_mapping['speed_increase']:
+        elif key == self.key_mapping['speed_increase']:      # y
             self.adjust_speed(0.1)
-        elif key == self.key_mapping['speed_decrease']:
+        elif key == self.key_mapping['speed_decrease']:      # h
             self.adjust_speed(-0.1)
-        elif key == self.key_mapping['size_increase']:
+        elif key == self.key_mapping['size_increase']:       # u
             self.adjust_size(0.05)
-        elif key == self.key_mapping['size_decrease']:
+        elif key == self.key_mapping['size_decrease']:       # j
             self.adjust_size(-0.05)
-        # arrow keys for Makey Makey (works with regular keyboard too)
+        # 'a' — Player 2 D-pad up / Makey Max A button → gravity increase
+        # (complements 'd' = epsilon decrease so WASD acts as a 2-axis controller:
+        #  W/A = gravity up, S = gravity down, D = epsilon down)
+        elif key == 'a':
+            self.adjust_gravity(0.2)
+        # Arrow keys — base Makey Makey board and Makey Mouse
         elif key == 'up':
             self.adjust_gravity(0.2)
         elif key == 'down':
@@ -236,7 +260,7 @@ class GameLayout(Widget):
         elif key == 'left':
             self.adjust_epsilon(-0.1)
         elif key == 'spacebar':
-            # space spawns a molecule right in the middle of the screen
+            # space spawns a molecule right in the middle of the game area
             cx = self.pos[0] + self.size[0] / 2
             cy = self.pos[1] + self.size[1] / 2
             self.spawn_molecule_at_touch(type('_T', (), {'pos': (cx, cy)})())

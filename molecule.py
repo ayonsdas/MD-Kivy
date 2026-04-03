@@ -89,6 +89,10 @@ class Molecule(Widget):
             self.total_velocity *= self.speed_cap / self.total_velocity.length()
 
     def fix_force(self):
+        fx, fy = self.total_force
+        if not (abs(fx) < 1e15 and abs(fy) < 1e15):
+            self.total_force = self.total_force * 0  # zero out inf/NaN
+            return
         if self.total_force.length() > self.force_cap:
             self.total_force *= self.force_cap / self.total_force.length()
 

@@ -18,12 +18,12 @@ class ArduinoGraph(Widget):
         self.max_points = 300
         self.data_points = [0] * self.max_points
 
-        # Add motion label
+        # Add motion label — font size will be updated proportionally in update_label_position
         self.motion_label = Label(
             text="Motion: Low",
             size_hint=(None, None),
             color=(1, 1, 1, 1),
-            font_size='15sp'
+            font_size='12sp'
         )
         self.add_widget(self.motion_label)
 
@@ -31,7 +31,12 @@ class ArduinoGraph(Widget):
         Clock.schedule_interval(self.update_graph, 0.02)
 
     def update_label_position(self, *args):
-        self.motion_label.pos = (self.x + 10, self.top - 30)
+        # Offset and font scale with widget dimensions so the label never overflows
+        x_pad  = max(6, int(self.width  * 0.04))
+        y_pad  = max(14, int(self.height * 0.12))
+        self.motion_label.font_size = max(10, int(self.height * 0.14))
+        self.motion_label.texture_update()
+        self.motion_label.pos = (self.x + x_pad, self.top - y_pad)
 
     def add_data_point(self, value):
         # Smooth transitions for professional appearance

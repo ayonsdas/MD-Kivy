@@ -11,7 +11,7 @@ from kivy.uix.image import Image
 from kivy.uix.screenmanager import Screen, ScreenManager
 from kivy.uix.widget import Widget
 from kivy.core.window import Window
-from kivy.graphics import Color, Ellipse, Rectangle, Line, PushMatrix, PopMatrix, Translate
+from kivy.graphics import Color, Ellipse, Rectangle, Line, RoundedRectangle, PushMatrix, PopMatrix, Translate
 from game_layout import GameLayout
 from HoverItem import HoverItem
 from TextBlurb import TextBlurb
@@ -179,9 +179,7 @@ class GameScreen(Screen):
 
 
     def _build_makey_status(self, root):
-        # two labels sitting above the arduino status, no fancy overlay so it doesnt block clicks
-        from kivy.uix.floatlayout import FloatLayout
-
+        # Status row (dot + text) stays at the bottom-left, above the Arduino status
         container = FloatLayout(
             size_hint=(0.22, 0.035),
             pos_hint={'x': 0.005, 'y': 0.042}
@@ -201,38 +199,85 @@ class GameScreen(Screen):
             outline_width=1, outline_color=(0.3, 0.3, 0.3, 0.2)
         )
         self.makey_label.bind(size=self.makey_label.setter('text_size'))
-
-        # Key legend — plain multiline label, shown only when connected
-        self.makey_legend_label = Label(
-            text='', markup=True,
-            size_hint=(0.22, 0.20),
-            pos_hint={'x': 0.005, 'y': 0.08},
-            font_size='10sp',
-            color=(0.5, 0.85, 1, 0.9),
-            halign='left', valign='top'
-        )
-        self.makey_legend_label.bind(size=self.makey_legend_label.setter('text_size'))
-
         container.add_widget(self.makey_dot)
         container.add_widget(self.makey_label)
         root.add_widget(container)
-        root.add_widget(self.makey_legend_label)
+
+        # ── Key legend panel ──────────────────────────────────────────────────
+        # Sits in the right-side gap: below the Arduino graph label (y≈0.36)
+        # and above the bottom button row (y≈0.09).  Nothing else lives there.
+        self.makey_legend_container = FloatLayout(
+            size_hint=(0.155, 0.245),
+            pos_hint={'right': 0.99, 'y': 0.105},
+            opacity=0       # hidden until Makey Makey connects
+        )
+
+        # Dark rounded background + glowing border
+        with self.makey_legend_container.canvas.before:
+            Color(0.03, 0.07, 0.15, 0.92)
+            self._legend_bg = RoundedRectangle(
+                pos=self.makey_legend_container.pos,
+                size=self.makey_legend_container.size,
+                radius=[(8, 8), (8, 8), (8, 8), (8, 8)]
+            )
+            Color(0.2, 0.6, 1.0, 0.6)
+            self._legend_border = Line(
+                rounded_rectangle=[
+                    self.makey_legend_container.x,
+                    self.makey_legend_container.y,
+                    self.makey_legend_container.width,
+                    self.makey_legend_container.height, 8
+                ],
+                width=1.2
+            )
+        self.makey_legend_container.bind(
+            pos=self._update_legend_bg, size=self._update_legend_bg
+        )
+
+        # Inner label — positioned with a small inset so text doesn't touch border
+        self.makey_legend_label = Label(
+            text='', markup=True,
+            size_hint=(0.88, 0.90),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5},
+            font_size='9.5sp',
+            halign='left', valign='top'
+        )
+        self.makey_legend_label.bind(size=self.makey_legend_label.setter('text_size'))
+        self.makey_legend_container.add_widget(self.makey_legend_label)
+        root.add_widget(self.makey_legend_container)
+
+    def _update_legend_bg(self, *args):
+        """Keep the rounded background and border in sync with the container."""
+        c = self.makey_legend_container
+        self._legend_bg.pos  = c.pos
+        self._legend_bg.size = c.size
+        self._legend_border.rounded_rectangle = [c.x, c.y, c.width, c.height, 8]
 
     def _refresh_makey_ui(self):
         if self.makey.connected:
             self.makey_dot.color         = (0.3, 0.85, 1, 1)
             self.makey_dot.outline_color = (0.1, 0.6, 0.9, 0.7)
-            self.makey_label.text        = 'Makey Makey: Connected'
+            device = self.makey.device_info or 'Connected'
+            self.makey_label.text        = f'Makey Makey: {device}'
             self.makey_label.color       = (0.4, 0.9, 1, 1)
-            lines = '[b]Makey Makey keys:[/b]\n' + '\n'.join(
-                f'{k}  →  {a}' for k, a in KEY_LEGEND
-            )
-            self.makey_legend_label.text = lines
+
+            # Build styled legend:  [cyan key]  [dim arrow]  [warm action]
+            rows = ['[b][color=40d4ff]  Makey Makey Controls[/color][/b]', '']
+            for key, action in KEY_LEGEND:
+                rows.append(
+                    f'  [color=7ec8e8]{key}[/color]'
+                    f'  [color=556677]→[/color]'
+                    f'  [color=ffd580]{action}[/color]'
+                )
+            self.makey_legend_label.text = '\n'.join(rows)
+            self.makey_legend_container.opacity = 1
+
         else:
             self.makey_dot.color         = (0.45, 0.45, 0.45, 1)
             self.makey_dot.outline_color = (0.3, 0.3, 0.3, 0.3)
             self.makey_label.text        = 'Makey Makey: Not Connected'
             self.makey_label.color       = (0.55, 0.55, 0.55, 1)
+            self.makey_legend_container.opacity = 0
             self.makey_legend_label.text = ''
 
     def add_background(self, root):
@@ -249,7 +294,8 @@ class GameScreen(Screen):
 
     def add_preset_spinner(self, root):
         """Add the preset spinner to the bottom control section."""
-        self.spinner_row = BoxLayout(orientation='horizontal', size_hint=(0.4, None), height=40, pos_hint={'center_x': 0.3, 'y': 0.085})
+        spinner_h = max(28, int(Window.height * 0.04))
+        self.spinner_row = BoxLayout(orientation='horizontal', size_hint=(0.4, None), height=spinner_h, pos_hint={'center_x': 0.3, 'y': 0.085})
 
         # Label for the preset spinner - REMOVED (redundant with new Presets button)
         # preset_label = Label(text="Presets:", size_hint=(0.4, 1, size_hint=(None, None)), font_size=14)
@@ -380,12 +426,15 @@ class GameScreen(Screen):
     # Defines call Back Function HEre for Slider Box!!!!
     def create_sliders(self):
         """Create the slider UI for gravity, delta, sigma, epsilon, speed, and size."""
+        sp_x = max(8,  int(Window.width  * 0.010))   # ~1 % of screen width
+        sp_y = max(6,  int(Window.height * 0.009))   # ~0.9 % of screen height
+        pad  = max(5,  int(Window.height * 0.007))
         ui_panel = GridLayout(cols=3,
                               rows=2,
                               size_hint=(0.8, 0.15),
                               pos_hint={'center_x': 0.5, 'center_y': 0.22},
-                              spacing=(20, 20),  # Horizontal and vertical spacing (in pixels)
-                              padding=[10, 10, 10, 10]  # Padding around the entire grid (left, top, right, bottom))
+                              spacing=(sp_x, sp_y),
+                              padding=[pad, pad, pad, pad]
         )
 
         gravity_box = SliderBox(

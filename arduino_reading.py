@@ -79,13 +79,22 @@ class ArduinoReading:
     def _auto_detect_port():
         """Pick a likely Arduino serial port on Linux.
         Looks for known VID/PID or ttyACM*/ttyUSB* names. Returns a string or default '/dev/ttyACM0'.
+        Skips Makey Makey devices (VID 1b4f / SparkFun-JoyLabz) — they also create ttyACM ports
+        but are USB keyboards, not Arduinos.
         """
+        # Makey Makey and JoyLabz boards use VID 1b4f (SparkFun Electronics)
+        SKIP_VIDS = {'1b4f'}
+
         candidates = []
         try:
             for p in list_ports.comports():
                 name = p.device or ""
                 desc = (p.description or "").lower()
                 hwid = (p.hwid or "").lower()
+                # Skip Makey Makey / JoyLabz devices — they are USB keyboards, not Arduinos
+                if any(f'{vid}:' in hwid for vid in SKIP_VIDS):
+                    print(f"[INFO] Skipping Makey Makey / JoyLabz port {name} ({p.description})")
+                    continue
                 if any(k in desc for k in ["arduino", "ch340", "usb serial", "cp210", "ttyacm", "ttyusb"]) or \
                    any(k in name for k in ["ttyacm", "ttyusb"]) or \
                    any(k in hwid for k in ["2341:", "1a86:", "10c4:"]):

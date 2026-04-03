@@ -267,13 +267,20 @@ class StartScreen(Screen):
         Animation(opacity_level=0, duration=0.5).start(self.fade_overlay)
         print("[INFO] Looping background video started.")
 
-    # (rest of your original code unchanged)
-
     def add_buttons(self, root):
-        self.panel_wrapper = Widget(size_hint=(None, None), size=(1000, 100), pos=(root.width / 2 - 470, 10))
+        # Panel spans the centre ~50 % of the screen width and ~11 % of the height.
+        # Proportional sizing means it looks right on 800 p, 1080 p and 4K alike.
+        panel_w = root.width * 0.50
+        panel_h = root.height * 0.11
+        panel_x = root.width / 2 - panel_w / 2
+        self.panel_wrapper = Widget(size_hint=(None, None),
+                                    size=(panel_w, panel_h),
+                                    pos=(panel_x, 0))
         with self.panel_wrapper.canvas:
             Color(0.0, 0.0, 0.0, 0.4)
-            self.button_panel = RoundedRectangle(size=self.panel_wrapper.size, pos=self.panel_wrapper.pos, radius=[25])
+            self.button_panel = RoundedRectangle(size=self.panel_wrapper.size,
+                                                 pos=self.panel_wrapper.pos,
+                                                 radius=[25])
         root.bind(size=self.update_button_panel, pos=self.update_button_panel)
         root.add_widget(self.panel_wrapper)
 
@@ -304,10 +311,13 @@ class StartScreen(Screen):
 
     def update_button_panel(self, *args):
         if hasattr(self, 'button_panel'):
-            self.panel_wrapper.pos = (self.root.width / 2 - 470, 10)
-            self.button_panel.pos = self.panel_wrapper.pos
-            self.button_panel.size = (1000, 100)
-            self.panel_wrapper.size = (1000, 100)
+            panel_w = self.root.width * 0.50
+            panel_h = self.root.height * 0.11
+            panel_x = self.root.width / 2 - panel_w / 2
+            self.panel_wrapper.size = (panel_w, panel_h)
+            self.panel_wrapper.pos = (panel_x, 0)
+            self.button_panel.size = self.panel_wrapper.size
+            self.button_panel.pos  = self.panel_wrapper.pos
 
     def on_touch_down_global(self, window, touch):
         if hasattr(self, 'video') and self.video and self.video.state == 'stop':
