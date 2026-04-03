@@ -79,6 +79,6 @@ class SpinnerBox(FloatLayout):
     #     # self.border.rectangle = (self.x, self.y, self.width, self.height)
 
     # def _update_label_text_size(self, *args):
-    #     """Ensure the label text fits within the box."""
+    #     """make sure the label text fits in the box"""
     #     self.label.height = self.height * .3
     #     self.label.font_size = self.height * .2

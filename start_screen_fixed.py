@@ -10,7 +10,7 @@ from kivy.clock import Clock
 from kivy.animation import Animation
 from kivy.properties import NumericProperty
 import os
-import gc  # Memory cleanup
+import gc  # for garbage collection stuff
 
 class FadeOverlay(Widget):
     opacity_level = NumericProperty(1)
@@ -47,21 +47,21 @@ class StartScreen(Screen):
 
         self.add_widget(self.root)
 
-        # Track whether we bound the global touch handler
+        # keep track if we bound the touch event
         self._touch_bound = True
 
     def force_cleanup(self):
-        """Force memory cleanup to prevent accumulation"""
+        """tells python to clean up memory"""
         try:
-            gc.collect()  # Force garbage collection
-            gc.collect()  # Run twice for better cleanup
-            print("[DEBUG] Memory cleanup completed")
+            gc.collect()  # run garbage collection
+            gc.collect()  # run it again lol gotta make sure
+            print("[DEBUG] did the memory cleanup thing")
         except Exception as e:
-            print(f"[WARNING] Memory cleanup error: {e}")
+            print(f"[WARNING] couldnt clean up memory: {e}")
     
     def schedule_periodic_cleanup(self):
-        """Schedule periodic memory cleanup for video playback"""
-        Clock.schedule_interval(lambda dt: self.force_cleanup(), 30)  # Every 30 seconds
+        """runs cleanup every 30 secs to stop the video from freezing"""
+        Clock.schedule_interval(lambda dt: self.force_cleanup(), 30)  # every 30 seconds
 
     def add_background(self, root):
         with root.canvas.before:
@@ -74,7 +74,7 @@ class StartScreen(Screen):
         self.ui_rect.size = instance.size
 
     def add_video_player(self, root):
-        # Windows-friendly path search
+        # look for videos in local dir first then in Downloads
         local_dir = os.path.dirname(__file__)
         downloads_dirs = [
             os.path.join(os.path.expanduser('~'), 'Downloads'),
@@ -114,7 +114,7 @@ class StartScreen(Screen):
 
         Window.bind(on_touch_down=self.on_touch_down_global)
         
-        # Schedule periodic cleanup to prevent memory leaks
+        # start the cleanup routine
         self.schedule_periodic_cleanup()
 
     def play_intro_video(self):
@@ -126,16 +126,16 @@ class StartScreen(Screen):
             self.video.state = 'stop'
             self.video.unload()
             self.root.remove_widget(self.video)
-            # Memory cleanup after removing video
+            # clean up memory after removing the video
             self.force_cleanup()
 
         video_path = self.video_paths[self.video_index]
 
-        # ANTI-FREEZE: Smaller buffer size only
+        # smaller buffer to stop freezing
         self.video = Video(
             source=video_path,
             state='play',
-            options={'eos': 'stop', 'buffer_size': 2048},  # Much smaller buffer
+            options={'eos': 'stop', 'buffer_size': 2048},  # wayy smaller buffer
             allow_stretch=True,
             keep_ratio=False,
             volume=0,
@@ -151,7 +151,7 @@ class StartScreen(Screen):
         Animation(opacity_level=0, duration=0.6).start(self.fade_overlay)
 
     def on_click_next_video(self, *args):
-        # Disabled video clicking since we're only playing one video
+        # cant click videos cuz theres only one
         pass
         # if hasattr(self, 'video') and self.video and self.video.state == 'stop':
         #     self.video_index += 1
@@ -177,14 +177,14 @@ class StartScreen(Screen):
             old_video.state = 'stop'
             old_video.unload()
             self.root.remove_widget(old_video)
-            # Critical: Force memory cleanup after each video transition
+            # have to clean up after each video switches or it gets slow
             self.force_cleanup()
 
-        # ANTI-FREEZE: Smaller buffer here too
+        # same small buffer thing
         new_video = Video(
             source=self.video_paths[self.video_index],
             state='play',
-            options={'eos': 'stop', 'buffer_size': 2048},  # Smaller buffer
+            options={'eos': 'stop', 'buffer_size': 2048},  # small buffer
             allow_stretch=True,
             keep_ratio=False,
             volume=0,
@@ -243,15 +243,15 @@ class StartScreen(Screen):
             print(f"[ERROR] Loop video not found in any folder.")
             return
 
-        # ANTI-FREEZE: Smaller buffer for loop video too + cache optimization
+        # even smaller buffer for the loop video so it doesnt get angry
         self.loop_video = Video(
             source=loop_path,
             state='play',
             options={
                 'eos': 'loop', 
-                'buffer_size': 1024,  # Even smaller buffer to prevent accumulation
+                'buffer_size': 1024,  # really tiny buffer
                 'autoplay': True,
-                'allow_cache': False  # Prevent cache buildup
+                'allow_cache': False  # no cache so it doesnt build up
             },
             allow_stretch=True,
             keep_ratio=False,
@@ -268,8 +268,8 @@ class StartScreen(Screen):
         print("[INFO] Looping background video started.")
 
     def add_buttons(self, root):
-        # Panel spans the centre ~50 % of the screen width and ~11 % of the height.
-        # Proportional sizing means it looks right on 800 p, 1080 p and 4K alike.
+        # panel is in the middle ~50% of screen width and ~11% tall
+        # sizing scales to screen size so it looks good everywhere
         panel_w = root.width * 0.50
         panel_h = root.height * 0.11
         panel_x = root.width / 2 - panel_w / 2
@@ -333,7 +333,7 @@ class StartScreen(Screen):
         fade_out.bind(on_complete=switch_screen)
         fade_out.start(self.fade_overlay)
 
-    # Ensure videos are paused when leaving this screen, and resume on return
+    # pause videos when we switch away and start them again when we come back
     def on_pre_leave(self, *args):
         print("[INFO] Leaving StartScreen - pausing video")
         # Pause videos to free GPU resources but keep state for resuming
@@ -346,7 +346,7 @@ class StartScreen(Screen):
                 except Exception as e:
                     print(f"[WARNING] Failed to pause {attr}: {e}")
         
-        # Unbind global touch to avoid callbacks while in other screens
+        # dont do touch callbacks while in other screens
         if self._touch_bound:
             try:
                 Window.unbind(on_touch_down=self.on_touch_down_global)
@@ -356,7 +356,7 @@ class StartScreen(Screen):
 
     def on_pre_enter(self, *args):
         print("[INFO] Entering StartScreen - resuming video")
-        # Rebind touch if needed
+        # rebind touch if we need to
         if not self._touch_bound:
             try:
                 Window.bind(on_touch_down=self.on_touch_down_global)
@@ -364,7 +364,7 @@ class StartScreen(Screen):
             except Exception:
                 pass
         
-        # Resume paused videos with a smooth fade in
+        # start the vids again a bit fancier
         video_resumed = False
         for attr in ('video', 'loop_video'):
             vid = getattr(self, attr, None)
@@ -376,7 +376,7 @@ class StartScreen(Screen):
                 except Exception as e:
                     print(f"[WARNING] Failed to resume {attr}: {e}")
         
-        # If no video to resume (first time or video was stopped), start fresh
+        # if no video to show (first time or stopped), start fresh
         if not video_resumed:
             try:
                 if hasattr(self, 'video_paths') and hasattr(self, 'video_index'):
@@ -388,8 +388,7 @@ class StartScreen(Screen):
                     # First-time or missing init: re-add video player
                     self.add_video_player(self.root)
             except Exception:
-                # Fail-safe: keep UI responsive even if video fails
-                pass
+                    # ok if it fails just keep going
         
         # Fade in from black
         Animation(opacity_level=0, duration=0.5).start(self.fade_overlay)

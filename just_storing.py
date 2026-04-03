@@ -47,7 +47,7 @@ class GameScreen(Screen):
         self.root.add_widget(self.memory_label)
         self.root.add_widget(self.gpu_label)
 
-        # schedule performance monitoring to update every second
+        # schedule performance monitoring every second
         # (removed duplicate scheduling)
 
 
@@ -59,7 +59,7 @@ def monitor_performance(self, dt):
 
         psutil.cpu_percent(interval=None)
         cpu_usage = psutil.cpu_percent(interval=1.0, percpu=False)  # Instant CPU usage
-        memory_usage = psutil.virtual_memory().used / (1024 * 1024)  # Convert bytes to MB
+        memory_usage = psutil.virtual_memory().used / (1024 * 1024)  # bytes to MB
 
         # GPU Usage (for NVIDIA)
         try:
@@ -69,9 +69,9 @@ def monitor_performance(self, dt):
             )
             gpu_usage = float(gpu_result.stdout.strip()) if gpu_result.stdout.strip().isdigit() else 0
         except Exception:
-            gpu_usage = 0  # Skip if no GPU detected
+            gpu_usage = 0  # skip if no gpu
 
-        # Ensure UI labels exist before updating them
+        # check if labels exist before we update
         if hasattr(self, "cpu_label"):
             self.cpu_label.text = f"CPU Usage: {cpu_usage:.2f}%"
         if hasattr(self, "memory_label"):
@@ -207,7 +207,7 @@ Very useful   WE NEED THIS
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        # Create Performance Monitor
+        # make the monitor
         self.monitor = PerformanceMonitor()
 
         # Use FloatLayout to position elements freely

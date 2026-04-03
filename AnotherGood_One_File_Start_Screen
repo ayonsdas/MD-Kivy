@@ -61,7 +61,7 @@ class StartScreen(Screen):
 
         self.add_widget(self.root)
 
-        # Track whether we bound the global touch handler
+        # track if we bound touch
         self._touch_bound = True
 
     def update_label_text_size(self, instance, value):
@@ -133,7 +133,7 @@ class StartScreen(Screen):
             self.video.state = 'stop'
             self.video.unload()
             self.root.remove_widget(self.video)
-        # Ensure label starts hidden for a fresh video
+        # hide the label at start of video
         try:
             self.keep_clicking_label.opacity = 0
         except Exception:
@@ -243,7 +243,7 @@ class StartScreen(Screen):
             self.root.remove_widget(self.video)
             self.video = None
 
-        # Ensure label hidden when loop starts
+        # hide label when the loop video starts
         try:
             self.keep_clicking_label.opacity = 0
         except Exception:
@@ -355,16 +355,10 @@ class StartScreen(Screen):
             except Exception:
                 pass
             self.loop_video = None
-        # Unbind global touch while in game to prevent extra work
-        if self._touch_bound:
-            try:
-                Window.unbind(on_touch_down=self.on_touch_down_global)
-            except Exception:
-                pass
-            self._touch_bound = False
+        # dont do any extra touch stuff while playing the game
         self.manager.current = "GameScreen"
 
-    # Ensure videos are paused/stopped when leaving this screen, and resume on return
+    # stop and pause videos when leaving/coming back to this screen
     def on_pre_leave(self, *args):
         # Stop and unload any active videos to free CPU/GPU
         for attr in ('video', 'loop_video'):
@@ -405,5 +399,4 @@ class StartScreen(Screen):
                 # First-time or missing init: re-add video player
                 self.add_video_player(self.root)
         except Exception:
-            # Fail-safe: keep UI responsive even if video fails
-            pass
+                    # ok if it fails

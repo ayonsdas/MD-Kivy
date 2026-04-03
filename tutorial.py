@@ -35,13 +35,13 @@ class GameScreen(Screen):
         # Add a grey background to cover the entire UI
         self.add_background(self.root)
 
-        # Create the game area
+        # make the game area
         self.game_area = GameLayout(size_hint=(0.8, 0.6), pos_hint={'center_x': 0.5, 'center_y': 0.6})
 
         # Add the game area to the root layout
         self.root.add_widget(self.game_area)
     
-        # Add the preset selector spinner in the control section
+        # add the spinner thingy to controls
         self.add_preset_spinner(self.root)
 
         # Add other UI elements
@@ -97,7 +97,7 @@ class GameScreen(Screen):
         root.add_widget(self.spinner_row)
 
     def generated_selected_preset(self, preset):
-        """Handle preset selection and update the GameLayout."""
+        """when user selects a preset, generate that type of molecule config"""
         if preset == "Solid":
             self.game_area.generate_solid()
         elif preset == "Liquid":
@@ -106,7 +106,7 @@ class GameScreen(Screen):
             self.game_area.generate_gas()
 
     def add_ui_elements(self, root):
-        """Add sliders, switches, and other UI elements."""
+        """add all the sliders and buttons and stuff"""
         ui_panel = self.create_sliders()
         bottom_row = self.create_bottom_controls()
         root.add_widget(ui_panel)

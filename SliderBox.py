@@ -30,7 +30,7 @@ class SliderBox(BoxLayout):
         )
         self.add_widget(self.label)
 
-        # Create and add slider
+        # make a slider and add it
         self.slider = CustomSlider(
             min=min_value,
             max=max_value,

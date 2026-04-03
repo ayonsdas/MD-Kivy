@@ -47,7 +47,7 @@ class GameLayout(Widget):
         super(GameLayout, self).__init__(**kwargs)
         # self.arduino = ArduinoReading('/dev/ttyUSB0')  # open serial once!!!! below connects twice and more
         try:
-            # Respect env overrides and auto-detection logic inside ArduinoReading
+            # pay attention to env overrides and auto-detection from ArduinoReading
             self.arduino = ArduinoReading()
             print(f"[INFO] Arduino serial opened on {self.arduino.port} @ {self.arduino.baud_rate}")
         except Exception as e:
@@ -70,7 +70,7 @@ class GameLayout(Widget):
         Clock.schedule_interval(self.monitor_performance, 1)
         set_global_monitor(self.performance_monitor)
         
-        # Schedule periodic cleanup to prevent memory leaks
+        # run cleanup every 60 secs so memory doesnt get out of hand
         Clock.schedule_interval(self.periodic_cleanup, 60)  # Every 60 seconds 
 
         # --- Smooth performance helpers (low-risk) ---
@@ -80,60 +80,59 @@ class GameLayout(Widget):
         self._sec_accum = 0.0              # generic per-frame time accumulator
         self.arduino_activity = 0.0        # Arduino accelerometer activity (0-100)
         
-        # Track previous acceleration for shake detection
+        # keep track of prev acceleration so we can detect shaking
         self._prev_accel = None            # Previous (x, y, z) accelerometer values
         self._shake_intensity = 0.0        # Current shake intensity (0-100)
 
-        # Gentle CPU governor: slow update interval and hide arrows when CPU is high
-        self._governor_state = 'normal'    # 'normal' | 'throttle'
+        # when cpu gets high slow down the updates
+        self._governor_state = 'normal'    # normal or throttle mode
         self._governor_high_time = 0.0     # seconds above threshold
         self._governor_low_time = 0.0      # seconds below threshold
         self._governor_multiplier = 1.0    # 1.0 normal, >1.0 slows updates
         self._forces_hidden_by_governor = False
 
-        # Track scheduling to apply governor without changing user speed semantics
+        # keep track of scheduling so governor doesnt mess with user speed
         self._speed_factor = 1.0
         self._base_interval = 1 / 30.0
         self._current_interval = self._base_interval
 
-        # remember the last radius we used - fix_radius clears and redraws the whole canvas
-        # which is really slow, so we only call it when the size actually changes
+        # remember which radius we had so we dont redraw if nothing changed
         self._last_molecule_radius = 0.0
 
-        # Keyboard should be set up once
+        # keyboard just needs to be set up once
         self._keyboard_initialized = False
-        # Debounce: track last time each key was processed to prevent rapid-fire freezing
+        # track when keys were pressed so we dont get repeat events
         self._key_last_press = {}
         self._key_cooldown = 0.08   # 80 ms minimum between repeat events for the same key
 
-        # garbage collection runs every 30 seconds - only scheduled ONCE here, not inside monitor_performance
-        # (monitor_performance runs every second so putting it there created hundreds of GC timers!!)
+        # garbage collection runs every 30 seconds
+        # (not in monitor_performance cuz that runs every second and would create tons of timers!!)
         Clock.schedule_interval(lambda dt: gc.collect(), 30)
 
-        # Schedule gentle governor checks
+        # check governor stuff every half second
         Clock.schedule_interval(self._governor_update, 0.5)
 
-        # mission manager gets connected from simulation.py after everything is set up
+        # mission manager gets hooked up later from simulation.py
         self.mission_manager = None
 
-        self.bonds = {}  # Dictionary to store Line objects for each bond
+        self.bonds = {}  # store the bond lines here
         # print(self.molecule_radius)
         self.old_pos = self.pos[:]
         self.old_size = self.size[:]
         self.pos_in_between = self.pos[:]
         self.size_in_between = self.size[:]
         self.scale = 10 ** (2)
-        self.gravity = 0  # Initialize gravity
+        self.gravity = 0  # start with no gravity
         self.delta = 1 / 60.0  # Time step
-        self.selected_molecule = None  # Track the first selected molecule for bonding
-        self.simulation_running = False  # Track if simulation is running
+        self.selected_molecule = None  # first molecule we touched for bonding
+        self.simulation_running = False  # is the sim actually running rn
         self.size_factor = 0.6
         self.molecule_radius = self.size[0] * self.molecule_radius_ratio * self.size_factor # Radius of the molecule
         self.forces_visible = True
 
-        # Safe performance cutoff for Lennard-Jones interactions (standard practice)
+        # use LJ cutoff so it doesnt lag
         self.enable_lj_cutoff = True
-        self.lj_cutoff_sigma = 2.5  # cutoff radius = 2.5 * sigma
+        self.lj_cutoff_sigma = 2.5  # cutoff distance with sigma value
 
         self.arduino_data_label = Label(
             text="Arduino X: 0.00\nArduino Y: 0.00\nArduino Z: 0.00\nGravity Scale: 0.00",
@@ -149,16 +148,16 @@ class GameLayout(Widget):
 
         # self.add_widget(self.arduino_data_label)
 
-    # Spatial hash config removed (reverted to ensure stability)
+    # spatial hash got removed (just using simple approach now)
 
 
-# Work on this part to log CPU usage and Memory Usage
+# Performance and CPU monitoring stuff
     def monitor_performance(self, dt):
         cpu_usage = self.performance_monitor.get_cpu_usage()
         atom_count = len(self.molecules)
         print(f"Atoms: {atom_count}, CPU Usage: {cpu_usage:.2f}%")
 
-        # Variable to store the scheduled update event
+        # variable to store the scheduled update thing
         # self.update_event = None
         # Labels for stats
         # self.total_energy_label = Label(text="Total Energy: 0", size_hint=(None, None), pos_hint={})
@@ -168,7 +167,7 @@ class GameLayout(Widget):
         # self.add_widget(self.temperature_label)
         # self.add_widget(self.pressure_label)
         
-        # Key bindings for controlling sliders
+        # key mappings for keyboard controls
         self.key_mapping = {
             'gravity_increase': 'w',
             'gravity_decrease': 's',
@@ -184,7 +183,7 @@ class GameLayout(Widget):
             'size_decrease' : 'j'
         }
 
-        # Schedule the update event
+        # set up the update schedule
         self.update_event = None
         if not self._keyboard_initialized:
             self.setup_keyboard()
@@ -193,12 +192,12 @@ class GameLayout(Widget):
         # GC is already set up in __init__, dont add another one here every second!
         
     def setup_keyboard(self):
-        """Initialize keyboard binding for slider controls."""
+        """set up keyboard bindings for slider controls"""
         self._keyboard = Window.request_keyboard(self._keyboard_closed, self)
         self._keyboard.bind(on_key_down=self.on_key_down)
 
     def _keyboard_closed(self):
-        """Unbind keyboard events when keyboard is closed."""
+        """unbind keyboard events when closed"""
         self._keyboard.unbind(on_key_down=self.on_key_down)
         self._keyboard = None
 
@@ -215,7 +214,7 @@ class GameLayout(Widget):
         """
         key = keycode[1]
 
-        # Debounce — skip if the same key fired too recently (prevents UI freeze on held keys)
+        # Debounce — dont fire same key twice in quick succession (stops UI from freezing)
         now = time.monotonic()
         if now - self._key_last_press.get(key, 0) < self._key_cooldown:
             return True
@@ -245,8 +244,8 @@ class GameLayout(Widget):
             self.adjust_size(0.05)
         elif key == self.key_mapping['size_decrease']:       # j
             self.adjust_size(-0.05)
-        # 'a' — Player 2 D-pad up / Makey Max A button → gravity increase
-        # (complements 'd' = epsilon decrease so WASD acts as a 2-axis controller:
+        # 'a' — Player 2 D-pad up / Makey Max A button → turns up gravity
+        # (works with 'd' = epsilon down so WASD is like a 2-axis controller:
         #  W/A = gravity up, S = gravity down, D = epsilon down)
         elif key == 'a':
             self.adjust_gravity(0.2)
@@ -267,41 +266,41 @@ class GameLayout(Widget):
         return True
 
     def adjust_gravity(self, change):
-        """Adjust gravity by a specified increment and update the slider."""
+        """change gravity value and update the slider"""
         self.gravity = max(0, min(self.gravity + change, 10))
         if self.gravity_slider:
             self.gravity_slider.value = self.gravity
 
     def adjust_epsilon(self, change):
-        """Adjust epsilon by a specified increment and update the slider."""
+        """change epsilon value and update slider"""
         self.epsilon = max(0, min(self.epsilon + change, 10))
         if self.epsilon_slider:
             self.epsilon_slider.value = self.epsilon
 
     def adjust_sigma(self, change):
-        """Adjust sigma by a specified increment and update the slider."""
+        """change sigma value and update slider"""
         self.sigma = max(0.1, min(self.sigma + change, 3))
         if self.sigma_slider:
             self.sigma_slider.value = self.sigma
 
     def adjust_delta(self, change):
-        """Adjust delta by a specified increment and update the slider."""
+        """change timestep value and update slider"""
         self.delta = max(1 / 600, min(self.delta + change, 1))
         if self.delta_slider:
             self.delta_slider.value = self.delta
 
     def adjust_speed(self, change):
-        """Adjust simulation speed factor by a specified increment and update the slider."""
+        """change simulation speed and update slider"""
         new_speed = max(0.1, min(self.speed_slider.value + change, 1)) if self.speed_slider else 1.0
 
-        # Update speed slider and reschedule with new interval
+        # change speed slider and set up schedule again with new time
         if self.speed_slider:
             self.speed_slider.value = new_speed
         
         self.set_speed(new_speed)
         
     def adjust_size(self, change):
-        """Adjust size by a specified increment and update the slider."""
+        """change size factor and update slider"""
         self.size_factor = max(0.2, min(self.size_factor + change, 1))
         if self.size_slider:
             self.size_slider.value = self.size_factor
@@ -311,17 +310,16 @@ class GameLayout(Widget):
             molecule.fix_radius(self.molecule_radius)
 
     def create_bond(self, molecule1, molecule2):
-        """Creates a bond between two molecules and a Line object to represent it."""
+        """create a bond line between two molecules"""
         if (molecule1, molecule2) not in self.bonds and (molecule2, molecule1) not in self.bonds:
 
-            # Create a Line object for the bond
+        # make a line between the molecules
             with self.canvas:
                 line = Line(points=[molecule1.center_x, molecule1.center_y, molecule2.center_x, molecule2.center_y], width=2)
-                # Store the line associated with this bond in bond_lines
                 self.bonds[(molecule1, molecule2)] = line
 
     def remove_bond(self, molecule1, molecule2):
-        """Removes a bond between two molecules and its associated Line object."""
+        """delete a bond between two molecules"""
         if (molecule1, molecule2) in self.bonds:
             bond = (molecule1, molecule2)
         elif (molecule2, molecule1) in self.bonds:
@@ -334,32 +332,31 @@ class GameLayout(Widget):
         return True
             
     def clear_bonds(self):
-        """Clears all bonds and removes bond lines from the canvas."""
+        """remove all bonds from the canvas"""
         for bond, line in self.bonds.items():
             self.canvas.remove(line)
         self.bonds.clear()
     
     def periodic_cleanup(self, dt):
-        """Periodic memory cleanup to prevent accumulation over time"""
+        """clean up memory every so often so it doesnt get bloated"""
         try:
-            # Force garbage collection
+            # run garbage collection
             gc.collect()
             
-            # Clean up any orphaned canvas instructions
+            # if there are no molecules clean up the canvas
             if len(self.molecules) == 0:
-                # If no molecules, clear any remaining canvas objects
                 self.canvas.clear()
-                # Redraw background
+                # redraw the background
                 with self.canvas.before:
                     Color(0, 0, 0, 1)
                     self.rect = Rectangle(pos=self.pos, size=self.size)
             
-            print(f"[DEBUG] Periodic cleanup: {len(self.molecules)} molecules, {len(self.bonds)} bonds")
+            print(f"[DEBUG] cleanup: {len(self.molecules)} molecules, {len(self.bonds)} bonds")
         except Exception as e:
-            print(f"[WARNING] Cleanup error: {e}")
+            print(f"[WARNING] cleanup failed: {e}")
 
     def update_bond_lines(self):
-        """Update the positions of all bond lines."""
+        """update where all the bond lines are drawn"""
         with self.canvas:
             Color(0.4, 0.85, 1.0, 0.65)  # Cyan glow instead of flat white
             for bond in self.bonds:
@@ -367,23 +364,19 @@ class GameLayout(Widget):
                 line.points = [bond[0].center_x, bond[0].center_y, bond[1].center_x, bond[1].center_y]
                 
     def apply_spring_force(self):
-        """Apply spring force to all bonded pairs of molecules."""
+        """apply spring forces to bonded molecules"""
         for molecule1, molecule2 in self.bonds:
-            # Vector between molecule1 and molecule2
+            # figure out spring force between molecules (Hooke's law)
             r12 = Vector(molecule2.center_x - molecule1.center_x, molecule2.center_y - molecule1.center_y)
-            distance = r12.length()
-
-            # Calculate the spring force using Hooke's law
-            force_magnitude = -self.spring_constant * (distance - self.spring_rest_length)
 
             if distance > 0:
-                force_vector = (force_magnitude / distance) * r12  # Normalize the force vector
-                # Apply the force to both molecules
+                force_vector = (force_magnitude / distance) * r12
+                # push them apart or together
                 molecule1.add_force(-force_vector)
                 molecule2.add_force(force_vector)
 
     def update_rect(self, instance, value):
-        # Store the current position and size before updating
+        # save where we were
         self.old_pos = self.pos_in_between[:]
         self.old_size = self.size_in_between[:]
 
@@ -392,11 +385,11 @@ class GameLayout(Widget):
         # print(f"New pos: {self.pos}, New size: {self.size}")
         # print(f"Updating because of: {instance} with value: {value}")
 
-        # Store old size and position for future reference
+        # save the new pos/size for next time
         self.pos_in_between = self.pos[:]
         self.size_in_between = self.size[:]
 
-        # Update the rectangle position and size
+        # move the rect to match
         self.rect.pos = self.pos
         self.rect.size = self.size
         
@@ -410,11 +403,11 @@ class GameLayout(Widget):
         # if self.is_safe_touch(touch):
         #     self.spawn_molecule_at_touch(touch)
         # return
-        """Handle touch events for creating bonds between two selected molecules."""
+        """when user touches screen, select a molecule or create a bond between them"""
         
         selected_molecule = None
 
-        # Check if the touch is near any molecule
+        # if touch near a molecule, maybe select it
         for molecule in self.molecules:
             if Vector(touch.pos).distance(molecule.center) <= molecule.radius * 2:
                 selected_molecule = molecule
@@ -447,10 +440,8 @@ class GameLayout(Widget):
         )
 
     def spawn_molecule_at_touch(self, touch):
-        """
-        Spawn a molecule at the touch position with a random initial velocity.
-        """
-        # Generate random angle
+        """spawn a mol at touch with random velocity"""
+        # pick random direction
         angle = uniform(-math.pi, math.pi)
         
         
@@ -460,12 +451,12 @@ class GameLayout(Widget):
         molecule = Molecule(molecule_center=(touch.pos[0] + 50 - self.molecule_radius, touch.pos[1] + 50 - self.molecule_radius), molecule_radius=self.molecule_radius, molecule_vx=vx, molecule_vy=vy,
                     parent_pos=self.pos[:], parent_size=self.size[:], forces_visible=self.forces_visible)
 
-        molecule.update_color_based_on_speed()  # Ensure the color is updated based on initial speed
+        molecule.update_color_based_on_speed()  # update color based on how fast its going
         self.add_widget(molecule)
         self.molecules.append(molecule)
         
     def start_simulation(self):
-        """Start the simulation update loop."""
+        """start the update loop"""
         if not self.simulation_running:
             self.simulation_running = True
             self._base_interval = 1 / 30.0
@@ -473,24 +464,24 @@ class GameLayout(Widget):
             self.update_event = Clock.schedule_interval(self.update, self._current_interval)
 
     def stop_simulation(self):
-        """Stop the simulation update loop."""
+        """stop the update loop"""
         if self.simulation_running:
             self.simulation_running = False
             if self.update_event is not None:
                 self.update_event.cancel()
                 self.update_event = None
             
-            # Force cleanup when stopping to free memory
+            # clean up memory when we stop
             gc.collect()
 
     def set_speed(self, speed_factor):
-        """Adjust the simulation speed by setting a new interval."""
+        """change simulation speed"""
         self._speed_factor = max(0.1, float(speed_factor))
         self._base_interval = (1 / 30.0) / self._speed_factor
         self._apply_update_interval()
 
     def _apply_update_interval(self):
-        """Apply effective interval considering governor multiplier."""
+        """apply the interval based on governor settings"""
         effective = self._base_interval * self._governor_multiplier
         if self.update_event is not None:
             try:
@@ -502,7 +493,7 @@ class GameLayout(Widget):
         
     def set_size(self, size_factor):
         """Adjust the simulation speed by setting a new interval."""
-        # Schedule with the new interval based on the speed factor
+        # set up schedule with new time based on the speed
         self.size_factor = size_factor
         self.molecule_radius = self.size[0] * self.molecule_radius_ratio * self.size_factor
         for molecule in self.molecules:
@@ -522,7 +513,7 @@ class GameLayout(Widget):
         temperature = 0
         pressure = 0
 
-        # Get Arduino accelerometer data and calculate scale factor
+        # grab arduino shake data and figure out how much to scale by
         arduino_data = self.arduino.get_xyz() if self.arduino else None
         if arduino_data:
             x, y, z = arduino_data
@@ -531,20 +522,20 @@ class GameLayout(Widget):
             # Scale factor: 1.0 = normal gravity, >1.0 = shaking/movement
             scale_factor = max(accel_magnitude / 16384.0, 0.1)  # Minimum 0.1 to avoid zero
 
-            # Calculate SHAKE INTENSITY based on acceleration change rate (jerk)
-            if self._prev_accel is not None:
+                # figure out shake intensity from how fast things are changing
+                if self._prev_accel is not None:
                 prev_x, prev_y, prev_z = self._prev_accel
                 # Measure how much each axis changed (delta)
                 delta_x = abs(x - prev_x)
                 delta_y = abs(y - prev_y)
                 delta_z = abs(z - prev_z)
                 
-                # Total change magnitude (shake = rapid acceleration changes)
+                # total shake = quick acceleration changes
                 shake_delta = (delta_x**2 + delta_y**2 + delta_z**2) ** 0.5
                 
                 # Scale to 0-100 with better calibration
-                # Typical frame-to-frame deltas: stationary ~10-50, shake ~100-2000
-                # Use logarithmic-like scaling to handle wide range
+                # normal is like 10-50, shaking is 100-2000
+                # use like a log scale thing for the crazy range
                 if shake_delta < 20:
                     # Very stable - almost no shake
                     shake_raw = 0
@@ -561,19 +552,19 @@ class GameLayout(Widget):
                 # Cap at 100
                 shake_raw = min(shake_raw, 100)
                 
-                # Smooth but responsive
+                # smooth it out but still snappy
                 self.arduino_activity = 0.5 * self.arduino_activity + 0.5 * shake_raw
             else:
-                # First reading - no previous data
+                # first time - no old data yet
                 self.arduino_activity = 0
             
-            # Store current reading for next comparison
-            self._prev_accel = (x, y, z)
+                # save current reading for next compare
+                self._prev_accel = (x, y, z)
 
-            # Update gravity based on Arduino acceleration
+            # set gravity based on shaking
             self.gravity = 9.8 * scale_factor
             
-            # Update labels to show shake intensity
+            # show shake on the label
             self.arduino_data_label.text = (
                 f"Arduino X: {x:.0f}\n"
                 f"Arduino Y: {y:.0f}\n"
@@ -585,13 +576,13 @@ class GameLayout(Widget):
             if self.arduino_graph:
                 self.arduino_graph.feed_arduino(x, y, z, self.arduino_activity)
 
-            # Throttle logging to ~1 Hz to avoid console flood
+            # dont spam console with logging
             self._arduino_log_accum += dt
             if self._arduino_log_accum >= 1.0:
                 print(f"Arduino → X:{x:.2f}, Y:{y:.2f}, Z:{z:.2f}, Scale:{scale_factor:.2f}")
                 self._arduino_log_accum = 0.0
         else:
-            # No Arduino data - use baseline values
+            # no arduino so just use normal gravity
             scale_factor = 1.0
 
         for molecule in self.molecules:
@@ -609,19 +600,19 @@ class GameLayout(Widget):
         self.apply_spring_force()
 
         self.frame_counter += 1
-        if self.frame_counter % 5 == 0:  # Only update bond lines every 5 frames
+        if self.frame_counter % 5 == 0:  # update bond lines every 5 frames
             self.update_bond_lines()
         if self.frame_counter % 10 == 0:
-            visible = random.sample(self.molecules, min(len(self.molecules), 10))  # only update 10 molecules
+            visible = random.sample(self.molecules, min(len(self.molecules), 10))  # just update 10
             for molecule in visible:
                 molecule.update_color_based_on_speed()
                 if self.forces_visible:
                     molecule.update_force_arrow()
-            # Update bonds once after batch
+            # update bonds too
             self.update_bond_lines()
 
 
-        # Precompute LJ cutoff distance squared (in screen units) if enabled
+        # figure out cutoff distance squared if needed
         if self.enable_lj_cutoff:
             cutoff_dist = (self.lj_cutoff_sigma * self.sigma * self.scale)
             cutoff2 = cutoff_dist * cutoff_dist
@@ -632,7 +623,7 @@ class GameLayout(Widget):
             molecule1 = self.molecules[i]
             for j in range(i + 1, len(self.molecules)):
                 molecule2 = self.molecules[j]
-                # Cheap broad-phase: skip expensive checks when boxes don't overlap
+                # quick check - if boxes dont overlap skip the hard stuff
                 dx = molecule2.center_x - molecule1.center_x
                 dy = molecule2.center_y - molecule1.center_y
                 sum_r = (molecule1.width + molecule2.width) * 0.5
@@ -641,7 +632,7 @@ class GameLayout(Widget):
                     molecule1.update_color_based_on_speed()
                     molecule2.update_color_based_on_speed()
                 if self.intermolecular_forces:
-                    # Apply distance cutoff for LJ to skip far pairs
+                    # skip if theyre too far away
                     if cutoff2 is not None:
                         r2 = dx*dx + dy*dy
                         if r2 > cutoff2:
@@ -649,7 +640,7 @@ class GameLayout(Widget):
                     force = molecule1.lennard_jones_force(molecule2, self.epsilon, self.sigma, self.scale)
                     molecule1.add_force(force)
                     molecule2.add_force(-force)
-            # Update per-molecule force arrows less frequently
+            # change force arrows less often
             if self.forces_visible and (self.frame_counter % self.arrow_update_every == 0):
                 molecule1.update_force_arrow()
             if self.use_verlet:
@@ -660,8 +651,8 @@ class GameLayout(Widget):
                 molecule1.move_nonVerlet()
 
             # Physics calculations with Arduino scale factor applied
-            # Convert screen-space velocities to normalized physics units
-            # Typical velocity range: 0-500 pixels/frame → normalize to 0-10 units
+            # turn pixel speeds to normal units
+            # pixels are like 0-500 per frame so normalize that down
             velocity_magnitude = molecule1.total_velocity.length()
             normalized_velocity = velocity_magnitude / 50.0  # Scale down by 50x
             
@@ -672,16 +663,16 @@ class GameLayout(Widget):
             # Arduino shaking adds energy (simulates external heating/vibration)
             total_energy += kinetic_energy * scale_factor
             
-            # Temperature: proportional to average kinetic energy per molecule
-            # In physics: T ∝ <KE>, higher values = more molecular motion
+            # temp is just how much molecules move around
+            # more movement = higher temp
             temperature += kinetic_energy * scale_factor
             
-            # Pressure: momentum transfers with walls (velocity × mass)
-            # Simplified as sum of velocity components, normalized
+            # pressure is when they smash into walls
+            # sum up speed and thats it
             momentum = (abs(molecule1.total_velocity.x) + abs(molecule1.total_velocity.y)) / 50.0
             pressure += momentum * scale_factor
 
-        # Update labels with calculated, realistic values
+        # show all the stuff we figured out
         num_molecules = len(self.molecules) if len(self.molecules) > 0 else 1
         avg_temperature = temperature / num_molecules  # available to mission tick every frame
 
@@ -692,10 +683,9 @@ class GameLayout(Widget):
             # Temperature: Kelvin-like units, realistic molecular scale
             self.temperature_label.text = f"Temperature: {avg_temperature:.2f}"
             
-            # Pressure: arbitrary units (AU), represents wall collisions
-            # Higher values = more frequent/forceful collisions
+            # Pressure: how hard molecules hit walls (doesnt mean physicsreal units)
             self.pressure_label.text = f"Pressure: {pressure:.2f}"
-        # Update bond lines after molecule movement
+        # change bond lines after molecules move
         # self.update_bond_lines()
         # memMb=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024.0/1024.0
         # print ("%5.1f MByte" % (memMb))
@@ -711,7 +701,7 @@ class GameLayout(Widget):
         # current_memory = process.memory_info().rss  # In bytes
         # print(f"Current memory usage: {current_memory / (1024 * 1024)} MB")
 
-        # Update speedometer with comprehensive metrics including Arduino and energy
+        # make speedometer show all the stuff
         self.performance_monitor.update_simulation_metrics(
             molecule_count=len(self.molecules),
             gravity=self.gravity,
@@ -721,10 +711,10 @@ class GameLayout(Widget):
             arduino_activity=self.arduino_activity,
             total_energy=total_energy
         )
-        # Accumulate dt for any time-based features
+        # accumulate time for whatever time-based stuff is going on
         self._sec_accum += dt
 
-        # tell the mission system whats happening this frame (only if a mission is running)
+        # pass to mission system whats happening now
         if self.mission_manager and self.mission_manager.state == 'active':
             self.mission_manager.tick(dt, avg_temperature, self.performance_monitor.get_cpu_usage(), len(self.molecules))
 
@@ -745,7 +735,7 @@ class GameLayout(Widget):
         # print(f"Process CPU Usage: {process_cpu:.2f}% | Process RAM Usage: {process_memory:.2f} MB")
 
     def on_resize(self):
-        # When the game layout is resized, rescale molecules' positions
+        # when window gets bigger/smaller, rescale molecule stuff
         for molecule in self.molecules:
             molecule.rescale_position(self.pos[:], self.size[:])
             molecule.fix_radius(self.molecule_radius)
@@ -775,14 +765,14 @@ class GameLayout(Widget):
     def toggle_forces_visible(self):
         """Toggle intermolecular forces on or off."""
         self.forces_visible = not self.forces_visible
-        # Set whether force arrows should be visible for this molecule
+        # say if force arrows show for this molecule
         for molecule in self.molecules:
             molecule.forces_visible = self.forces_visible
             molecule.update_force_arrow()
 
     # --- Gentle CPU governor ---
     def _governor_update(self, dt):
-        """Adjust update rate and arrow visibility based on CPU usage."""
+        """adjust update rate based on cpu usage"""
         try:
             cpu = self.performance_monitor.get_cpu_usage()
         except Exception:
@@ -814,9 +804,22 @@ class GameLayout(Widget):
                 self._forces_hidden_by_governor = False
             self._apply_update_interval()
 
+    def _apply_physics_preset(self, gravity, epsilon, sigma):
+        """Set gravity, epsilon and sigma and sync their sliders."""
+        self.set_gravity(gravity)
+        self.set_epsilon(epsilon)
+        self.set_sigma(sigma)
+        if self.gravity_slider:
+            self.gravity_slider.value = gravity
+        if self.epsilon_slider:
+            self.epsilon_slider.value = epsilon
+        if self.sigma_slider:
+            self.sigma_slider.value = sigma
+
     def generate_solid(self):
-        """Generate a solid-like arrangement of molecules."""
-        # self.performance_monitor.trigger_boost(40.0)   # added to help it
+        """make a solid-like arrangement of molecules"""
+        # Strong bonds (high epsilon), tight packing (low sigma), no gravity
+        self._apply_physics_preset(gravity=0, epsilon=5.0, sigma=0.8)
 
         self.clear_molecules()
         rows, cols = 11, 25
@@ -832,15 +835,18 @@ class GameLayout(Widget):
                 self.create_molecule(x, y, 0, 0)
 
     def generate_liquid(self):
-        """Generate a liquid-like arrangement of molecules."""
+        """make a liquid-like arrangement"""
         try:
             if hasattr(self.performance_monitor, 'trigger_boost'):
                 self.performance_monitor.trigger_boost(40.0)
         except Exception:
             print("[Slider boost error] trigger_boost unavailable")
 
+        # medium attraction, normal spacing, gravity pulls down
+        self._apply_physics_preset(gravity=3.0, epsilon=2.0, sigma=1.0)
+
         self.clear_molecules()
-        for _ in range(50):  # Create 50 molecules
+        for _ in range(50):
             x = uniform(self.pos[0] + 50, self.pos[0] + self.size[0] - 50)
             y = uniform(self.pos[1] + 50, self.pos[1] + self.size[1] - 50)
             vx = uniform(-50, 50)
@@ -848,23 +854,26 @@ class GameLayout(Widget):
             self.create_molecule(x, y, vx, vy)
 
     def generate_gas(self):
-        """Generate a gas-like arrangement of molecules."""
+        """make a gas-like arrangement"""
         try:
             if hasattr(self.performance_monitor, 'trigger_boost'):
                 self.performance_monitor.trigger_boost(40.0)
         except Exception:
             print("[Slider boost error] trigger_boost unavailable")
 
+        # Weak interactions (low epsilon), large spacing (high sigma), minimal gravity
+        self._apply_physics_preset(gravity=0.5, epsilon=0.3, sigma=1.5)
+
         self.clear_molecules()
-        for _ in range(15):  # Create 30 molecules
+        for _ in range(15):
             x = uniform(self.pos[0] + 50, self.pos[0] + self.size[0] - 50)
             y = uniform(self.pos[1] + 50, self.pos[1] + self.size[1] - 50)
-            vx = uniform(-200, 200)
-            vy = uniform(-200, 200)
+            vx = uniform(-300, 300)
+            vy = uniform(-300, 300)
             self.create_molecule(x, y, vx, vy)
 
     def clear_molecules(self):
-        """Clear all molecules from the canvas and list."""
+        """remove all molecules from the game"""
         for molecule in self.molecules:
             self.remove_widget(molecule)
         self.molecules.clear()
@@ -873,7 +882,7 @@ class GameLayout(Widget):
         # self.performance_monitor.simulation_load = 0.0 # to clear molecules back to normal
     
     def create_molecule(self, x, y, vx, vy):
-        """Create and add a molecule to the game layout."""
+        """make and add a molecule to the game"""
         molecule = Molecule(
             molecule_center=(x, y),
             molecule_radius=self.size[0] * self.molecule_radius_ratio * self.size_factor,

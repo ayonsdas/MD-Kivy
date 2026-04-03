@@ -27,15 +27,15 @@ class Molecule(Widget):
         self._draw_sphere()
 
     def _draw_sphere(self):
-        # draws the molecule as a 3D-looking sphere using 4 stacked circles
-        # note: self.pos here is the visual center of the molecule, not the bottom-left corner
+        # draws the molecule as a 3D sphere using stacked circles
+        # note: self.pos is the center of the molecule visually
         # (this is a quirk of how this codebase works, kivy normally uses bottom-left)
         r, g, b = self.color[0], self.color[1], self.color[2]
         cx, cy = self.pos[0], self.pos[1]
         rad = self.radius
 
         with self.canvas:
-            # soft glow around the outside, matches the molecule color
+        # soft glow around it, matches the color
             self.glow_color = Color(r, g, b, 0.18)
             gr = rad * 1.55
             self.glow_shape = Ellipse(pos=(cx - gr, cy - gr), size=(gr * 2, gr * 2))
@@ -60,12 +60,12 @@ class Molecule(Widget):
                 size=(sr * 2, sr * 2)
             )
 
-            # force arrow - cyan goes to orange as force gets stronger (looks way better than old blue/red)
+            # force arrow - cyan to orange shows how strong the force is
             self.arrow_color = Color(0, 0.8, 1, 1)
             self.arrow_line = Line(points=[], width=max(1.5, 4 * rad / 10))
 
     def _update_shape_positions(self):
-        # just moves all 4 sphere layers to follow the molecule, no canvas rebuild needed
+        # just move all sphere layers to follow the molecule
         cx, cy = self.pos[0], self.pos[1]
         rad = self.radius
 
@@ -124,7 +124,7 @@ class Molecule(Widget):
         self.update_force_arrow()
 
     def bounce_off_walls(self):
-        # flip velocity when hitting a wall
+        # bounce when hitting wall
         if self.x <= self.parentpos[0] or self.right >= self.parentpos[0] + self.parentsize[0]:
             self.total_velocity = Vector(-self.total_velocity.x, self.total_velocity.y)
         if self.y <= self.parentpos[1] or self.top >= self.parentpos[1] + self.parentsize[1]:
@@ -132,7 +132,7 @@ class Molecule(Widget):
         self.keep_within_bounds()
 
     def rescale_position(self, new_pos, new_size):
-        # moves molecule proportionally when the window resizes
+        # move molecule to follow the window
         proportion_x = (self.pos[0] - self.parentpos[0]) / self.parentsize[0]
         proportion_y = (self.pos[1] - self.parentpos[1]) / self.parentsize[1]
         self.pos = (new_size[0] * proportion_x + new_pos[0], new_size[1] * proportion_y + new_pos[1])
@@ -148,7 +148,7 @@ class Molecule(Widget):
         self.keep_within_bounds()
 
     def keep_within_bounds(self):
-        # makes sure molecule doesnt escape the box
+        # keep molecule inside the box
         if self.x < self.parentpos[0]:
             self.x = self.parentpos[0]
         if self.right > self.parentpos[0] + self.parentsize[0]:
@@ -164,7 +164,7 @@ class Molecule(Widget):
         return distance <= (self.width / 2 + other.width / 2)
 
     def resolve_collision(self, other):
-        # standard 2D elastic collision math
+        # 2D elastic collision stuff
         v1 = self.total_velocity
         v2 = other.total_velocity
         p1 = Vector(self.center)
@@ -183,7 +183,7 @@ class Molecule(Widget):
         other.fix_speed()
 
     def update_color_based_on_speed(self):
-        # slow molecules are dark blue, fast ones go bright pink/magenta
+        # slow ones are dark blue, fast ones turn bright pink/magenta
         t = min(self.total_velocity.length(), self.speed_cap) / self.speed_cap
         r = (self.color_slow[0] + (self.color_fast[0] - self.color_slow[0]) * t) / 255
         g = (self.color_slow[1] + (self.color_fast[1] - self.color_slow[1]) * t) / 255
@@ -193,7 +193,7 @@ class Molecule(Widget):
         self.base_color.rgb        = [r * 0.15, g * 0.15, b * 0.15]
 
     def lennard_jones_force(self, other, epsilon, sigma, scale):
-        # Lennard-Jones potential - molecules attract from far, repel when too close
+        # LJ potential - atoms pull on each other from far away but push when theyre close
         r = Vector(self.center).distance(other.center) / scale
         if r == 0:
             return Vector(0, 0)
@@ -219,5 +219,5 @@ class Molecule(Widget):
         arrow_length   = self.radius * 3 * t
         arrow_endpoint = Vector(self.center) + self.total_force.normalize() * arrow_length
         self.arrow_line.points = [self.center_x, self.center_y, arrow_endpoint[0], arrow_endpoint[1]]
-        # cyan when force is low, shifts to orange as it gets stronger
+        # cyan when force is small, turns orange when its strong
         self.arrow_color.rgb = [t, 0.8 * (1 - t) + 0.3 * t, 1.0 * (1 - t)]

@@ -12,7 +12,7 @@ class Speedometer(Widget):
         super().__init__(**kwargs)
         self.monitor = performance_monitor
         # Allow parent layouts to size this widget via size_hint.
-        # We'll render a circular dial inside the allocated rect without forcing self.size.
+        # draw a circular dial inside the rect
         self.size_hint = self.size_hint or (None, None)
         if self.size_hint == (None, None):
             # default standalone size when not managed by a layout
@@ -33,7 +33,7 @@ class Speedometer(Widget):
         Clock.schedule_interval(self.update_speedometer, 0.02)
 
     # Do not mutate self.size when managed by a layout; instead draw within a square
-    # that fits inside the current bounding box in update_speedometer.
+    # that fits in the bounding box in update_speedometer
 
     def get_dynamic_color(self, percent):
         """Green → Yellow → Red based on percent."""
@@ -47,13 +47,13 @@ class Speedometer(Widget):
 
     def update_speedometer(self, dt):
         self.canvas.clear()
-        # Use target usage (simulation metrics) instead of actual CPU
+        # use sim stuff instead of real cpu
         # This reflects Arduino shake intensity + molecule activity
         cpu_percent = min(self.monitor._target_usage, 100)
         target_angle = 135 + (cpu_percent * 270 / 100)
         self.current_angle += (target_angle - self.current_angle) * 0.1
 
-        # Draw in a centered square within the current widget rect
+        # draw in a square in the middle of the widget
         side = min(self.width, self.height)
         radius = side / 2.0
         cx = self.x + self.width / 2.0
@@ -68,8 +68,8 @@ class Speedometer(Widget):
         needle_length = radius * 0.8
 
         with self.canvas:
-            # Multi-layer glowing ring — all offsets proportional to radius so they
-            # scale correctly on small (800 p) and large (4K) screens alike.
+            # glowing rings - they scale based on how big the dial is
+            # so it looks right on small screens and 4K screens
             pulse = 0.5 + 0.5 * math.sin(time.time() * 2)
             base_alpha = 0.18 + (cpu_percent / 100) * 0.45 * pulse
 
@@ -94,7 +94,7 @@ class Speedometer(Widget):
             Color(0.1, 0.3, 0.6, 1)
             Ellipse(pos=(square_x, square_y), size=(side, side))
 
-            # Inner black circle — border also proportional
+        # black center - border scales too
             border = int(radius * 0.09)
             Color(0, 0, 0, 1)
             Ellipse(pos=(square_x + border, square_y + border),
@@ -111,8 +111,8 @@ class Speedometer(Widget):
                 Color(1, 1, 1, 1)
                 Line(points=[x1, y1, x2, y2], width=1.5)
 
-                # Scale font size proportionally to speedometer size (bold)
-                font_size = int(side * 0.055)  # 5.5% of speedometer diameter
+                # font sizes scale with the dial
+                font_size = int(side * 0.055)  # about 5.5% of the diameter
                 label = CoreLabel(text=str(i * 10), font_size=font_size, bold=True)
                 label.refresh()
                 texture = label.texture
@@ -130,12 +130,12 @@ class Speedometer(Widget):
             Color(r, g, 0, 1)
             Line(points=[cx, cy, nx, ny], width=3)
 
-            # Center dot — proportional to dial size
+            # small dot in the middle - scales with stuff
             dot_r = int(radius * 0.055)
             Color(r, g, 0, 1)
             Ellipse(pos=(cx - dot_r, cy - dot_r), size=(dot_r * 2, dot_r * 2))
 
-        # Percent label: center it on the dial using its own size
+        # percent label: put it on the dial using its size
         self.percent_label.text = f"{int(cpu_percent)}%"
         self.percent_label.font_size = int(side * 0.12)
         self.percent_label.bold = True

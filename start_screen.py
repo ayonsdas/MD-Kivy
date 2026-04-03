@@ -61,7 +61,7 @@
 
 #         self.add_widget(self.root)
 
-#         # Track whether we bound the global touch handler
+#         # keep track if we bound the touch event
 #         self._touch_bound = True
 
 #     def update_label_text_size(self, instance, value):
@@ -120,7 +120,7 @@
 #             self.video.state = 'stop'
 #             self.video.unload()
 #             self.root.remove_widget(self.video)
-#         # Ensure label starts hidden for a fresh video
+#         # hide label at the start of a fresh video
 #         try:
 #             self.keep_clicking_label.opacity = 0
 #         except Exception:
@@ -230,7 +230,7 @@
 #             self.root.remove_widget(self.video)
 #             self.video = None
 
-#         # Ensure label hidden when loop starts
+#         # hide label when loop starts
 #         try:
 #             self.keep_clicking_label.opacity = 0
 #         except Exception:
@@ -238,7 +238,7 @@
 
 
 
-#         # Ensure local_dir and downloads_dir are defined here as well
+#         # set up local and download dirs here too
 #         local_dir = os.path.dirname(__file__)
 #         downloads_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
 #         loop_local = os.path.join(local_dir, "fixed m to nm.mp4")
@@ -334,16 +334,10 @@
 #             except Exception:
 #                 pass
 #             self.loop_video = None
-#         # Unbind global touch while in game to prevent extra work
-#         if self._touch_bound:
-#             try:
-#                 Window.unbind(on_touch_down=self.on_touch_down_global)
-#             except Exception:
-#                 pass
-#             self._touch_bound = False
+#         # dont do touch stuff while in game
 #         self.manager.current = "GameScreen"
 
-#     # Ensure videos are paused/stopped when leaving this screen, and resume on return
+#     # stop/pause videos when leaving/coming back
 #     def on_pre_leave(self, *args):
 #         # Stop and unload any active videos to free CPU/GPU
 #         for attr in ('video', 'loop_video'):

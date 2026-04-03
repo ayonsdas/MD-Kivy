@@ -16,7 +16,7 @@ class PerformanceMonitor:
 
     def _monitor_loop(self):
         while True:
-            # Simulate work proportional to simulation load (burn CPU)
+            # simulate some work based on how much stuff is going on
             for _ in range(int(self.simulation_load)):
                 _ = sum(i * i for i in range(30))  # Adjust as needed
 

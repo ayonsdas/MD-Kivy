@@ -11,14 +11,14 @@ class ArduinoGraph(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        # Make it responsive
-        self.size_hint = (0.6, 0.25)     # 90% width of container, 25% height
+        # make it fit nicely
+        self.size_hint = (0.6, 0.25)     # 60% width, 25% height
         self.pos_hint = {'right': 0.98}
 
         self.max_points = 300
         self.data_points = [0] * self.max_points
 
-        # Add motion label — font size will be updated proportionally in update_label_position
+        # label - font gets updated in update_label_position
         self.motion_label = Label(
             text="Motion: Low",
             size_hint=(None, None),
@@ -31,7 +31,7 @@ class ArduinoGraph(Widget):
         Clock.schedule_interval(self.update_graph, 0.02)
 
     def update_label_position(self, *args):
-        # Offset and font scale with widget dimensions so the label never overflows
+        # label gets moved and scaled so it never overflows
         x_pad  = max(6, int(self.width  * 0.04))
         y_pad  = max(14, int(self.height * 0.12))
         self.motion_label.font_size = max(10, int(self.height * 0.14))
@@ -71,7 +71,7 @@ class ArduinoGraph(Widget):
             else:  # Very strong shake (60%+)
                 Color(1, 0.2, 0.2, 1)  # Red
 
-            # Draw graph line - height proportional to shake intensity
+            # graph line - height shows how much shaking
             points = []
             for i in range(1, len(self.data_points)):
                 x = self.x + (i / self.max_points) * width
@@ -89,13 +89,13 @@ class ArduinoGraph(Widget):
         Feed Arduino data and shake intensity.
         shake_intensity: 0-100 value representing shake strength (calculated from delta)
         """
-        # Use the pre-calculated shake intensity from game_layout
+        # use the shake intensity result from game_layout
         # Normalize to 0.0-1.0 range for graph height
         normalized = min(shake_intensity / 100.0, 1.0)
         
         self.add_data_point(normalized)
 
-        # Update label based on shake intensity (adjusted thresholds)
+        # change label based on shake intensity (adjusted thresholds)
         if shake_intensity < 10:  # Very minimal movement
             level = "Low"
         elif shake_intensity < 30:  # Moderate shaking

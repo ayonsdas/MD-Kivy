@@ -42,31 +42,31 @@ class PerformanceMonitor:
             self.set_target_usage(0)
             return
 
-        # Base computational load from physics calculations
+        # physics calculations = the main load
         force_multiplier = 2.0 if forces_on else 0.3  # Forces = 2x more calculations
         
-        # Molecule complexity (more molecules = more collision checks, O(n²))
+        # more molecules = more checks to do (O(n²) stuff)
         molecule_score = (molecule_count ** 1.2) * 0.5
         
-        # Physics parameters affect calculation complexity
+        # physics stuff = more work to calculate
         gravity_score = gravity * 2
         epsilon_score = epsilon * 1.5
         speed_score = speed * 5
         
-        # Energy contribution (higher energy = more active system = more work)
+        # energy stuff makes things more active = more work
         # Normalize energy to 0-20 range (assuming typical total_energy 0-1000)
         energy_score = min(total_energy / 50.0, 20)
         
-        # Arduino adds significant processing overhead (reading sensor, updating display)
-        # Scale: 0-50 based on Arduino activity (increased from 0.3 to 0.5 multiplier)
-        # Strong shaking should visibly increase speedometer
+        # arduino takes a bit more cpu (reading sensor, showing on display)
+        # Scale: 0-50 based on Arduino activity
+        # big shake = speedometer goes up
         arduino_score = arduino_activity * 0.5
         
         # Combine all factors
         simulation_load = (molecule_score + gravity_score + epsilon_score + 
                           speed_score + energy_score) * force_multiplier
         
-        # Arduino is additive (external processing load)
+        # arduino adds on top (more cpu stuff)
         total_score = simulation_load + arduino_score
         
         self.set_target_usage(total_score)

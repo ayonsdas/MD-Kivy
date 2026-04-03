@@ -49,7 +49,7 @@ class GameScreen(Screen):
 
         self.name = "GameScreen"
 
-        # Create Performance Monitor
+        # make performance monitor
         self.monitor = PerformanceMonitor()
 
 #        layout for the entire screen
@@ -72,17 +72,17 @@ class GameScreen(Screen):
 #        GameLayout to root
         self.root.add_widget(self.game_area)
 
-        # ------------------ RIGHT SIDE PANEL (RESPONSIVE) -------------------
-        # Use FloatLayout with pos_hint for screen-size independent positioning
+        # RIGHT SIDE PANEL with stuff
+        # Using FloatLayout for screen-size independent positioning
         
         # Speedometer (top right) - larger size, keep circular
         self.speedometer = Speedometer(performance_monitor=self.monitor)
-        # Using same proportion for width and height to maintain circular shape
-        self.speedometer.size_hint = (0.25, 0.25)  # Bigger and circular (increased from 0.20)
-        self.speedometer.pos_hint = {'right': 1.035, 'top': 0.95}  # Moved more right to perfectly center with label
+        # Using same ratio for width and height so it stays circular
+        self.speedometer.size_hint = (0.25, 0.25)  # bigger and round
+        self.speedometer.pos_hint = {'right': 1.035, 'top': 0.95}  # move right to center
         self.root.add_widget(self.speedometer)
 
-        # CPU Usage Label (below speedometer, centered)
+        # CPU Usage Label (under speedometer)
         self.cpu_usage_label = Label(
             text="[b]CPU % Usage[/b]",
             markup=True,
@@ -96,12 +96,12 @@ class GameScreen(Screen):
         self.cpu_usage_label.bind(size=self.cpu_usage_label.setter('text_size'))
         self.root.add_widget(self.cpu_usage_label)
 
-        # Arduino Graph (below CPU label)
+        # Arduino Graph (under CPU label)
         self.arduino_graph.size_hint = (0.15, 0.2)
         self.arduino_graph.pos_hint = {'right': 0.99, 'top': 0.62}
         self.root.add_widget(self.arduino_graph)
 
-        # Arduino Graph Label (below graph, centered)
+        # Arduino Graph Label (under graph)
         self.arduino_graph_label = Label(
             text="[b]Arduino Energy Input[/b]",
             markup=True,
@@ -119,7 +119,7 @@ class GameScreen(Screen):
         self.arduino_label = self.game_area.arduino_data_label
         self.root.add_widget(self.arduino_label)  # to root, not inside game_area
 
-        # the preset selector spinner in the control section
+        # the spinner thingy in the controls
         self.add_preset_spinner(self.root)
 
         # other UI elements (Sliders, buttons, etc.)
@@ -171,7 +171,7 @@ class GameScreen(Screen):
         self._update_arduino_status_label()
         Clock.schedule_interval(lambda dt: self._update_arduino_status_label(), 2)
 
-        # Makey Makey - checks in the background every 2 seconds if one is plugged in
+        # checks in the background for makey makey (every 2 seconds)
         # shows a status dot at the bottom left and a key legend when connected
         self.makey = MakeyMakeyMonitor()
         self._build_makey_status(self.root)
@@ -179,7 +179,7 @@ class GameScreen(Screen):
 
 
     def _build_makey_status(self, root):
-        # Status row (dot + text) stays at the bottom-left, above the Arduino status
+        # Status row (dot + text) stays bottom-left above arduino stuff
         container = FloatLayout(
             size_hint=(0.22, 0.035),
             pos_hint={'x': 0.005, 'y': 0.042}
@@ -204,11 +204,11 @@ class GameScreen(Screen):
         root.add_widget(container)
 
         # ── Key legend panel ──────────────────────────────────────────────────
-        # Sits in the right-side gap: below the Arduino graph label (y≈0.36)
-        # and above the bottom button row (y≈0.09).  Nothing else lives there.
+        # right-side gap: under the arduino graph (y~0.36)
+        # and over the button row (y~0.09). nothing else goes there.
         self.makey_legend_container = FloatLayout(
-            size_hint=(0.155, 0.245),
-            pos_hint={'right': 0.99, 'y': 0.105},
+            size_hint=(0.10, 0.26),
+            pos_hint={'x': 0.01, 'y': 0.18},
             opacity=0       # hidden until Makey Makey connects
         )
 
@@ -239,7 +239,7 @@ class GameScreen(Screen):
             text='', markup=True,
             size_hint=(0.88, 0.90),
             pos_hint={'center_x': 0.5, 'center_y': 0.5},
-            font_size='9.5sp',
+            font_size='8sp',
             halign='left', valign='top'
         )
         self.makey_legend_label.bind(size=self.makey_legend_label.setter('text_size'))
@@ -261,7 +261,7 @@ class GameScreen(Screen):
             self.makey_label.text        = f'Makey Makey: {device}'
             self.makey_label.color       = (0.4, 0.9, 1, 1)
 
-            # Build styled legend:  [cyan key]  [dim arrow]  [warm action]
+            # style the legend: [cyan key] [dim arrow] [warm action]
             rows = ['[b][color=40d4ff]  Makey Makey Controls[/color][/b]', '']
             for key, action in KEY_LEGEND:
                 rows.append(
@@ -294,7 +294,7 @@ class GameScreen(Screen):
 
     def add_preset_spinner(self, root):
         """Add the preset spinner to the bottom control section."""
-        spinner_h = max(28, int(Window.height * 0.04))
+        spinner_h = max(50, int(Window.height * 0.07))
         self.spinner_row = BoxLayout(orientation='horizontal', size_hint=(0.4, None), height=spinner_h, pos_hint={'center_x': 0.3, 'y': 0.085})
 
         # Label for the preset spinner - REMOVED (redundant with new Presets button)
@@ -328,7 +328,7 @@ class GameScreen(Screen):
         root.add_widget(self.spinner_row)
 
     def generated_selected_preset(self, preset):
-        """Handle preset selection and update the GameLayout."""
+        """when user selects a preset, generate that type of molecule config"""
         if preset == "Solid":
             self.game_area.generate_solid()
         elif preset == "Liquid":
@@ -337,7 +337,7 @@ class GameScreen(Screen):
             self.game_area.generate_gas()
 
     def add_ui_elements(self, root):
-        """Add sliders, switches, and other UI elements."""
+        """add all the sliders and buttons and stuff"""
         self.ui_panel = self.create_sliders()
         self.ui_panel.opacity = 0  # Hidden by default
         self.ui_panel_visible = False  # Track visibility state
@@ -496,13 +496,13 @@ class GameScreen(Screen):
             self.ui_panel.opacity = 0  # Hide
             self.ui_panel_visible = False
             self.remove_glow_effect()
-            # Keep hover disabled (no white square)
+            # dont hover (no white square)
             self.presets_button.hoverSource = "Graphics/Presets.png"
         else:
             self.ui_panel.opacity = 1  # Show
             self.ui_panel_visible = True
             self.add_glow_effect()
-            # Keep hover disabled to show glow properly
+            # no hover so glow shows right
             self.presets_button.hoverSource = "Graphics/Presets.png"
             # Force button to show default image
             self.presets_button.source = self.presets_button.defaultSource
@@ -512,12 +512,12 @@ class GameScreen(Screen):
         from kivy.graphics import Color, Ellipse, PushMatrix, PopMatrix, Rotate
         from kivy.animation import Animation
         
-        # Store glow elements for updating
+        # keep glow things so we can update em
         self.glow_elements = []
         
-        # Create glowing gradient layers around the button using ellipses for softer edges
+        # make glowing glow layers around the button using ellipses for soft edges
         with self.presets_button.canvas.before:
-            # Multiple layers of ellipses to create a gradient glow effect
+            # many layers of ellipses = gradient glow effect
             
             # Outer glow - deep purple (largest, most transparent)
             Color(0.6, 0.0, 1.0, 0.15)  # Purple
@@ -527,7 +527,7 @@ class GameScreen(Screen):
             )
             self.glow_elements.append(('ellipse', glow1, 15))
             
-            # Second layer - purple
+            # layer 2 - purple
             Color(0.5, 0.2, 0.9, 0.2)
             glow2 = Ellipse(
                 pos=(self.presets_button.x - 12, self.presets_button.y - 12),
@@ -535,7 +535,7 @@ class GameScreen(Screen):
             )
             self.glow_elements.append(('ellipse', glow2, 12))
             
-            # Third layer - blue-purple
+            # layer 3 - blue-purple
             Color(0.3, 0.3, 1.0, 0.25)
             glow3 = Ellipse(
                 pos=(self.presets_button.x - 9, self.presets_button.y - 9),
@@ -543,7 +543,7 @@ class GameScreen(Screen):
             )
             self.glow_elements.append(('ellipse', glow3, 9))
             
-            # Fourth layer - blue
+            # layer 4 - blue
             Color(0.2, 0.5, 1.0, 0.3)
             glow4 = Ellipse(
                 pos=(self.presets_button.x - 6, self.presets_button.y - 6),
@@ -551,7 +551,7 @@ class GameScreen(Screen):
             )
             self.glow_elements.append(('ellipse', glow4, 6))
             
-            # Fifth layer - light blue
+            # layer 5 - light blue
             Color(0.4, 0.7, 1.0, 0.35)
             glow5 = Ellipse(
                 pos=(self.presets_button.x - 3, self.presets_button.y - 3),
@@ -559,7 +559,7 @@ class GameScreen(Screen):
             )
             self.glow_elements.append(('ellipse', glow5, 3))
             
-            # Innermost layer - bright cyan
+            # innermost - bright cyan
             Color(0.5, 0.8, 1.0, 0.4)
             glow6 = Ellipse(
                 pos=(self.presets_button.x - 1, self.presets_button.y - 1),
@@ -567,7 +567,7 @@ class GameScreen(Screen):
             )
             self.glow_elements.append(('ellipse', glow6, 1))
         
-        # Bind position updates
+        # hook up position changes
         self.presets_button.bind(pos=self.update_glow_position, size=self.update_glow_position)
     
     def update_glow_position(self, *args):
@@ -586,7 +586,7 @@ class GameScreen(Screen):
 
     def create_bottom_controls(self):
         """Create the bottom controls with switches and buttons (responsive sizing)."""
-        # Make button row height scale with screen - 8% of screen height
+        # button row height = 8% of screen height
         button_height = Window.height * 0.08
         bottom_row = BoxLayout(
             orientation='horizontal',
@@ -598,7 +598,7 @@ class GameScreen(Screen):
         # forces_container, _ = self.create_forces_switch()
         # forces_visible_container, _ = self.create_forces_visible_switch()
         self.presets_button = self.create_hover_button("Presets", self.toggle_sliders)
-        # Disable hover effect initially - keep it same as default to show glow properly
+        # dont hover at start - keeps glow looking good
         self.presets_button.hoverSource = "Graphics/Presets.png"
         self.use_forces_button = self.create_hover_button("Forces-Off", self.toggle_intermolecular_forces)
         self.see_forces_button = self.create_hover_button("Hide-Forces", self.toggle_forces_visible)
@@ -646,7 +646,7 @@ class GameScreen(Screen):
 
     def create_hover_button(self, label, callback):
         """Helper to create buttons with hover effects (responsive sizing)."""
-        # Buttons fill their container proportionally
+        # buttons fill up their space
         return HoverItem(
             size_hint=(1, 1),
             hoverSource=f"Graphics/{label}_Highlighted.png",

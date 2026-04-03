@@ -8,20 +8,20 @@ class MemoryUsageGraph(BoxLayout):
         super().__init__(**kwargs)
         self.monitor = monitor
 
-        # Create a Graph widget
+        # make a Graph widget
         self.graph = Graph(
             xlabel='Time (s)',
             ylabel='Memory Usage (%)',
             x_ticks_minor=1,
             x_ticks_major=5,
 
-            # Show more frequent major ticks for memory,
-            # can see changes even if the range is small.
+            # more frequent ticks so you can see memory changes
+            # even if the range is small
             y_ticks_major=1,
             y_grid_label=True,
             x_grid_label=True,
 
-            # Initial axis range ( update dynamically)
+            # starting range (changes as we go)
             xmin=0,
             xmax=60,
             ymin=0,

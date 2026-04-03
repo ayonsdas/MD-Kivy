@@ -68,7 +68,7 @@ class CPUUsageGraph(BoxLayout):
             self.graph.xmin = 0
             self.graph.xmax = 60
 
-        # Keeping list from growing too large
+        # dont let the list get crazy big
         if len(self.cpu_data) > 120:
             self.cpu_data.pop(0)
 

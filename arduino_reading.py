@@ -5,7 +5,7 @@ import socket
 import serial
 from serial.tools import list_ports
 
-# This script reads data from an Arduino connected via serial port.
+# reads from arduino over serial port
 
 # Directly reading from the port ==> check connection!!!
 
@@ -51,11 +51,11 @@ class ArduinoReading:
         self._patterns = [
             re.compile(r"X\s*=\s*(-?\d+)\s*\|\s*Y\s*=\s*(-?\d+)\s*\|\s*Z\s*=\s*(-?\d+)"),
             re.compile(r"X\s*:\s*(-?\d+)\s*,\s*Y\s*:\s*(-?\d+)\s*,\s*Z\s*:\s*(-?\d+)"),
-            # New pattern for "X: value\nY: value\nZ: value" format (captures across newlines)
+            # pattern for "X: value\nY: value\nZ: value" format
             re.compile(r"X\s*:\s*(-?\d+).*?Y\s*:\s*(-?\d+).*?Z\s*:\s*(-?\d+)", re.DOTALL)
         ]
         self._btn_pat = re.compile(r"\b(HIGH|LOW)\b", re.IGNORECASE)
-        self._analog_pat = re.compile(r"\b(\d{1,5})\b")  # generic analog value
+        self._analog_pat = re.compile(r"\b(\d{1,5})\b")  # just a number
 
         if self.mode == 'tcp':
             # TCP mode (wireless)
@@ -82,7 +82,7 @@ class ArduinoReading:
         Skips Makey Makey devices (VID 1b4f / SparkFun-JoyLabz) — they also create ttyACM ports
         but are USB keyboards, not Arduinos.
         """
-        # Makey Makey and JoyLabz boards use VID 1b4f (SparkFun Electronics)
+        # makey makey boards = vendor 1b4f (sparkfun stuff)
         SKIP_VIDS = {'1b4f'}
 
         candidates = []
@@ -104,7 +104,7 @@ class ArduinoReading:
 
         if candidates:
             return candidates[0]
-        # Reasonable Linux default for Arduino-class devices
+        # sensible default for Arduino stuff on Linux
         return "/dev/ttyACM0"
 
     def _parse_xyz_line(self, line: str):
@@ -126,7 +126,7 @@ class ArduinoReading:
             self._temp_y = int(y_match.group(1))
         if z_match:
             self._temp_z = int(z_match.group(1))
-            # When we get Z, we have all three values
+        # when we get Z, thats all three values
             if hasattr(self, '_temp_x') and hasattr(self, '_temp_y'):
                 return self._temp_x, self._temp_y, self._temp_z
         
@@ -177,7 +177,7 @@ class ArduinoReading:
         if m:
             self.last_button = m.group(1).upper()
 
-        # Parse analog value (heuristic)
+        # try to get a number from the data
         m2 = self._analog_pat.search(line)
         if m2:
             try:
@@ -191,9 +191,9 @@ class ArduinoReading:
     def get_xyz(self):
         """Return (x, y, z) if available. Always tries to read new data. Non-blocking."""
         try:
-            # Always try to consume new data
+            # keep reading new stuff
             self._consume_and_parse()
-            # Return last known value (could be from previous read)
+            # give back last value we had
             return self.last_xyz
         except Exception:
             return None
