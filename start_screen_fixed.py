@@ -391,4 +391,4 @@ class StartScreen(Screen):
                     # ok if it fails just keep going
         
         # Fade in from black
-        Animation(opacity_level=0, duration=0.5).start(self.fade_overlay)
+               Animation(opacity_level=0, duration=0.5).start(self.fade_overlay)

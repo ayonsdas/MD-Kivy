@@ -368,8 +368,13 @@ class GameLayout(Widget):
         for molecule1, molecule2 in self.bonds:
             # figure out spring force between molecules (Hooke's law)
             r12 = Vector(molecule2.center_x - molecule1.center_x, molecule2.center_y - molecule1.center_y)
-
+            distance = r12.length()
+            
             if distance > 0:
+                # spring constant and equilibrium distance
+                k_spring = 0.5
+                r_eq = 100
+                force_magnitude = k_spring * (distance - r_eq)
                 force_vector = (force_magnitude / distance) * r12
                 # push them apart or together
                 molecule1.add_force(-force_vector)
