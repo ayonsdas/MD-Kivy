@@ -71,19 +71,74 @@ class ArduinoReading:
         else:
             # Serial mode (default)
             self.port = port or env_port or self._auto_detect_port()
-            self.baud_rate = int(baud_rate or (env_baud if env_baud else 115200))  # Changed from 9600 to match Arduino
+            if self.port is None:
+                raise RuntimeError("No Arduino port found — Makey Makey skipped, no other serial device detected")
+            self.baud_rate = int(baud_rate or (env_baud if env_baud else 115200))
             self.serial_connection = serial.Serial(self.port, self.baud_rate, timeout=0)
             time.sleep(2)
+
+    @staticmethod
+    def _find_makey_ports():
+        """Return a set of /dev/ttyACM* and /dev/ttyUSB* paths that belong to Makey Makey
+        (or similar USB HID+serial) devices, detected via sysfs on Linux.
+
+        Detection order:
+          1. Product name contains 'makey' / 'joylab'
+          2. VID is 1b4f (SparkFun/JoyLabz)
+          3. Device exposes a HID interface (bInterfaceClass 03) alongside the CDC serial
+             interface — a real Arduino Uno/Mega/Nano never has a HID interface.
+        """
+        makey_ports = set()
+        tty_root = '/sys/class/tty'
+        if not os.path.isdir(tty_root):
+            return makey_ports
+        for tty_name in os.listdir(tty_root):
+            if not (tty_name.startswith('ttyACM') or tty_name.startswith('ttyUSB')):
+                continue
+            device_link = os.path.join(tty_root, tty_name, 'device')
+            if not os.path.exists(device_link):
+                continue
+            try:
+                usb_iface = os.path.realpath(device_link)
+                usb_dev   = os.path.dirname(usb_iface)
+
+                # 1. Product name check
+                prod_path = os.path.join(usb_dev, 'product')
+                if os.path.exists(prod_path):
+                    with open(prod_path) as f:
+                        prod = f.read().strip().lower()
+                    if any(kw in prod for kw in ('makey', 'makeymakey', 'joylab')):
+                        makey_ports.add(f'/dev/{tty_name}')
+                        continue
+
+                # 2. VID check (SparkFun/JoyLabz)
+                vid_path = os.path.join(usb_dev, 'idVendor')
+                if os.path.exists(vid_path):
+                    with open(vid_path) as f:
+                        if f.read().strip() == '1b4f':
+                            makey_ports.add(f'/dev/{tty_name}')
+                            continue
+
+                # 3. HID interface check — Makey Makey is a keyboard AND a serial port;
+                #    real Arduinos (Uno, Mega, Nano) only have CDC interfaces, never HID.
+                for entry in os.listdir(usb_dev):
+                    iface_class = os.path.join(usb_dev, entry, 'bInterfaceClass')
+                    if os.path.exists(iface_class):
+                        with open(iface_class) as f:
+                            if f.read().strip() == '03':   # 03 = HID
+                                makey_ports.add(f'/dev/{tty_name}')
+                                break
+            except Exception:
+                pass
+        return makey_ports
 
     @staticmethod
     def _auto_detect_port():
         """Pick a likely Arduino serial port on Linux.
         Looks for known VID/PID or ttyACM*/ttyUSB* names. Returns a string or default '/dev/ttyACM0'.
-        Skips Makey Makey devices (VID 1b4f / SparkFun-JoyLabz) — they also create ttyACM ports
-        but are USB keyboards, not Arduinos.
+        Skips Makey Makey devices even when they report as 'Arduino Leonardo' (VID 2341).
         """
-        # makey makey boards = vendor 1b4f (sparkfun stuff)
-        SKIP_VIDS = {'1b4f'}
+        makey_ports = ArduinoReading._find_makey_ports()
 
         candidates = []
         try:
@@ -91,9 +146,8 @@ class ArduinoReading:
                 name = p.device or ""
                 desc = (p.description or "").lower()
                 hwid = (p.hwid or "").lower()
-                # Skip Makey Makey / JoyLabz devices — they are USB keyboards, not Arduinos
-                if any(f'{vid}:' in hwid for vid in SKIP_VIDS):
-                    print(f"[INFO] Skipping Makey Makey / JoyLabz port {name} ({p.description})")
+                if name in makey_ports:
+                    print(f"[INFO] Skipping Makey Makey port {name} ({p.description})")
                     continue
                 if any(k in desc for k in ["arduino", "ch340", "usb serial", "cp210", "ttyacm", "ttyusb"]) or \
                    any(k in name for k in ["ttyacm", "ttyusb"]) or \
@@ -104,8 +158,8 @@ class ArduinoReading:
 
         if candidates:
             return candidates[0]
-        # sensible default for Arduino stuff on Linux
-        return "/dev/ttyACM0"
+        # No suitable port found — don't fall back to a Makey Makey port
+        return None
 
     def _parse_xyz_line(self, line: str):
         # Try existing patterns first (single-line formats)

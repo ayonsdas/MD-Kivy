@@ -19,6 +19,7 @@ import random
 import psutil
 import os
 import gc
+from kivy.animation import Animation
 
 
 # TO DO LIST 
@@ -100,6 +101,7 @@ class GameLayout(Widget):
         self._last_molecule_radius = 0.0
 
         # keyboard just needs to be set up once
+        self._keyboard = None
         self._keyboard_initialized = False
         # track when keys were pressed so we dont get repeat events
         self._key_last_press = {}
@@ -146,7 +148,16 @@ class GameLayout(Widget):
         )
         self.arduino_data_label.bind(size=self.arduino_data_label.setter('text_size'))
 
-        # self.add_widget(self.arduino_data_label)
+        # floating flash label — shows what a Makey Makey key just did
+        self._feedback_label = Label(
+            text='', markup=True,
+            size_hint=(None, None), size=(260, 48),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5},
+            font_size='18sp', bold=True,
+            halign='center', valign='middle',
+            color=(0, 1, 1, 0),          # starts fully transparent
+        )
+        self.add_widget(self._feedback_label)
 
     # spatial hash got removed (just using simple approach now)
 
@@ -193,13 +204,23 @@ class GameLayout(Widget):
         
     def setup_keyboard(self):
         """set up keyboard bindings for slider controls"""
+        if self._keyboard:
+            try:
+                self._keyboard.unbind(on_key_down=self.on_key_down)
+            except Exception:
+                pass
         self._keyboard = Window.request_keyboard(self._keyboard_closed, self)
         self._keyboard.bind(on_key_down=self.on_key_down)
 
     def _keyboard_closed(self):
-        """unbind keyboard events when closed"""
-        self._keyboard.unbind(on_key_down=self.on_key_down)
+        """keyboard was released — unbind and immediately re-request so Makey Makey keeps working"""
+        try:
+            self._keyboard.unbind(on_key_down=self.on_key_down)
+        except Exception:
+            pass
         self._keyboard = None
+        self._keyboard_initialized = False
+        Clock.schedule_once(lambda _dt: self.setup_keyboard(), 0.05)
 
     def on_key_down(self, keyboard, keycode, text, modifiers):
         """Handle key press events for controlling sliders.
@@ -221,21 +242,29 @@ class GameLayout(Widget):
         self._key_last_press[key] = now
 
         if key == self.key_mapping['gravity_increase']:      # w
-            self.adjust_gravity(0.1)
+            self.adjust_gravity(1.0)
+            self.show_key_feedback('Gravity  +')
         elif key == self.key_mapping['gravity_decrease']:    # s
-            self.adjust_gravity(-0.1)
+            self.adjust_gravity(-1.0)
+            self.show_key_feedback('Gravity  -')
         elif key == self.key_mapping['epsilon_increase']:    # e
-            self.adjust_epsilon(0.1)
+            self.adjust_epsilon(0.5)
+            self.show_key_feedback('Epsilon  +')
         elif key == self.key_mapping['epsilon_decrease']:    # d
-            self.adjust_epsilon(-0.1)
+            self.adjust_epsilon(-0.5)
+            self.show_key_feedback('Epsilon  -')
         elif key == self.key_mapping['sigma_increase']:      # r
-            self.adjust_sigma(0.05)
+            self.adjust_sigma(0.2)
+            self.show_key_feedback('Sigma  +')
         elif key == self.key_mapping['sigma_decrease']:      # f
-            self.adjust_sigma(-0.05)
+            self.adjust_sigma(-0.2)
+            self.show_key_feedback('Sigma  -')
         elif key == self.key_mapping['delta_increase']:      # t
             self.adjust_delta(1 / 60.0)
+            self.show_key_feedback('Delta  +')
         elif key == self.key_mapping['delta_decrease']:      # g
             self.adjust_delta(-1 / 60.0)
+            self.show_key_feedback('Delta  -')
         elif key == self.key_mapping['speed_increase']:      # y
             self.adjust_speed(0.1)
         elif key == self.key_mapping['speed_decrease']:      # h
@@ -244,26 +273,35 @@ class GameLayout(Widget):
             self.adjust_size(0.05)
         elif key == self.key_mapping['size_decrease']:       # j
             self.adjust_size(-0.05)
-        # 'a' — Player 2 D-pad up / Makey Max A button → turns up gravity
-        # (works with 'd' = epsilon down so WASD is like a 2-axis controller:
-        #  W/A = gravity up, S = gravity down, D = epsilon down)
         elif key == 'a':
-            self.adjust_gravity(0.2)
-        # Arrow keys — base Makey Makey board and Makey Mouse
+            self.adjust_gravity(1.0)
+            self.show_key_feedback('Gravity  +')
         elif key == 'up':
-            self.adjust_gravity(0.2)
+            self.adjust_gravity(1.0)
+            self.show_key_feedback('Gravity  +')
         elif key == 'down':
-            self.adjust_gravity(-0.2)
+            self.adjust_gravity(-1.0)
+            self.show_key_feedback('Gravity  -')
         elif key == 'right':
-            self.adjust_epsilon(0.1)
+            self.adjust_epsilon(0.5)
+            self.show_key_feedback('Epsilon  +')
         elif key == 'left':
-            self.adjust_epsilon(-0.1)
+            self.adjust_epsilon(-0.5)
+            self.show_key_feedback('Epsilon  -')
         elif key == 'spacebar':
-            # space spawns a molecule right in the middle of the game area
             cx = self.pos[0] + self.size[0] / 2
             cy = self.pos[1] + self.size[1] / 2
             self.spawn_molecule_at_touch(type('_T', (), {'pos': (cx, cy)})())
+            self.show_key_feedback('Spawned!')
         return True
+
+    def show_key_feedback(self, text):
+        """Flash a label in the centre of the game area for 0.7 s."""
+        lbl = self._feedback_label
+        lbl.text = f'[b][color=00cfff]{text}[/color][/b]'
+        lbl.color = (0, 1, 1, 1)
+        Animation.cancel_all(lbl)
+        Animation(color=(0, 1, 1, 0), duration=0.7).start(lbl)
 
     def adjust_gravity(self, change):
         """change gravity value and update the slider"""

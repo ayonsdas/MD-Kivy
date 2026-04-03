@@ -207,40 +207,40 @@ class GameScreen(Screen):
         # right-side gap: under the arduino graph (y~0.36)
         # and over the button row (y~0.09). nothing else goes there.
         self.makey_legend_container = FloatLayout(
-            size_hint=(0.10, 0.26),
-            pos_hint={'x': 0.01, 'y': 0.18},
-            opacity=0       # hidden until Makey Makey connects
+            size_hint=(0.113, 0.33),
+            pos_hint={'x': 0.005, 'y': 0.13},
+            opacity=0
         )
 
-        # Dark rounded background + glowing border
         with self.makey_legend_container.canvas.before:
-            Color(0.03, 0.07, 0.15, 0.92)
+            Color(0.02, 0.06, 0.14, 0.97)
             self._legend_bg = RoundedRectangle(
                 pos=self.makey_legend_container.pos,
                 size=self.makey_legend_container.size,
-                radius=[(8, 8), (8, 8), (8, 8), (8, 8)]
+                radius=[(10, 10), (10, 10), (10, 10), (10, 10)]
             )
-            Color(0.2, 0.6, 1.0, 0.6)
+            Color(0.0, 0.75, 1.0, 0.85)
             self._legend_border = Line(
                 rounded_rectangle=[
                     self.makey_legend_container.x,
                     self.makey_legend_container.y,
                     self.makey_legend_container.width,
-                    self.makey_legend_container.height, 8
+                    self.makey_legend_container.height, 10
                 ],
-                width=1.2
+                width=1.8
             )
         self.makey_legend_container.bind(
             pos=self._update_legend_bg, size=self._update_legend_bg
         )
 
-        # Inner label — positioned with a small inset so text doesn't touch border
+        legend_font = max(12, int(Window.height * 0.020))
         self.makey_legend_label = Label(
             text='', markup=True,
-            size_hint=(0.88, 0.90),
+            size_hint=(0.88, 0.92),
             pos_hint={'center_x': 0.5, 'center_y': 0.5},
-            font_size='8sp',
-            halign='left', valign='top'
+            font_size=f'{legend_font}sp',
+            halign='left', valign='top',
+            line_height=1.35,
         )
         self.makey_legend_label.bind(size=self.makey_legend_label.setter('text_size'))
         self.makey_legend_container.add_widget(self.makey_legend_label)
@@ -261,13 +261,16 @@ class GameScreen(Screen):
             self.makey_label.text        = f'Makey Makey: {device}'
             self.makey_label.color       = (0.4, 0.9, 1, 1)
 
-            # style the legend: [cyan key] [dim arrow] [warm action]
-            rows = ['[b][color=40d4ff]  Makey Makey Controls[/color][/b]', '']
+            title_font = max(14, int(Window.height * 0.024))
+            rows = [
+                f'[b][size={title_font}][color=00cfff]KEY BINDINGS[/color][/size][/b]',
+                '[color=1a5f7a]──────────────[/color]',
+            ]
             for key, action in KEY_LEGEND:
                 rows.append(
-                    f'  [color=7ec8e8]{key}[/color]'
-                    f'  [color=556677]→[/color]'
-                    f'  [color=ffd580]{action}[/color]'
+                    f'  [b][color=ffffff]{key}[/color][/b]'
+                    f'  [color=4499bb]->[/color]'
+                    f'  [color=ffa940]{action}[/color]'
                 )
             self.makey_legend_label.text = '\n'.join(rows)
             self.makey_legend_container.opacity = 1
