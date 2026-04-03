@@ -523,7 +523,7 @@ class GameLayout(Widget):
             scale_factor = max(accel_magnitude / 16384.0, 0.1)  # Minimum 0.1 to avoid zero
 
                 # figure out shake intensity from how fast things are changing
-                if self._prev_accel is not None:
+            if self._prev_accel is not None:
                 prev_x, prev_y, prev_z = self._prev_accel
                 # Measure how much each axis changed (delta)
                 delta_x = abs(x - prev_x)
