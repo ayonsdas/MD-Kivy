@@ -117,7 +117,7 @@ class GameLayout(Widget):
         # mission manager gets hooked up later from simulation.py
         self.mission_manager = None
 
-        self.bonds = {}  # store the bond lines here
+        self.bonds = {}  # store the bond lines here  
         # print(self.molecule_radius)
         self.old_pos = self.pos[:]
         self.old_size = self.size[:]

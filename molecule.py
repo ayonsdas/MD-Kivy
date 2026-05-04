@@ -52,7 +52,7 @@ class Molecule(Widget):
                 size=(mr * 2, mr * 2)
             )
 
-            # tiny white dot top-right like light hitting a real sphere
+            # white specular dot - small highlight to give the ball a 3D look
             self.spec_color = Color(1.0, 1.0, 1.0, 0.80)
             sr = rad * 0.22
             self.spec_shape = Ellipse(
@@ -216,7 +216,11 @@ class Molecule(Widget):
         else:
             force_magnitude = 0
         t = max(min(force_magnitude / 5, 1), 0)
-        arrow_length   = self.radius * 3 * t
+        arrow_length = self.radius * 3 * t
+        # skip tiny stubs - below this threshold it just looks like a blob dot
+        if arrow_length < self.radius * 0.8:
+            self.arrow_line.points = []
+            return
         arrow_endpoint = Vector(self.center) + self.total_force.normalize() * arrow_length
         self.arrow_line.points = [self.center_x, self.center_y, arrow_endpoint[0], arrow_endpoint[1]]
         # cyan when force is small, turns orange when its strong
