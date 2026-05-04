@@ -62,7 +62,7 @@ class Molecule(Widget):
 
             # force arrow - cyan to orange shows how strong the force is
             self.arrow_color = Color(0, 0.8, 1, 1)
-            self.arrow_line = Line(points=[], width=max(1.5, 4 * rad / 10))
+            self.arrow_line = Line(points=[], width=max(1.0, 1.2 * rad / 10))
 
     def _update_shape_positions(self):
         # just move all sphere layers to follow the molecule
@@ -216,7 +216,7 @@ class Molecule(Widget):
         else:
             force_magnitude = 0
         t = max(min(force_magnitude / 5, 1), 0)
-        arrow_length = self.radius * 3 * t
+        arrow_length = self.radius * 1.8 * t
         # skip tiny stubs - below this threshold it just looks like a blob dot
         if arrow_length < self.radius * 0.8:
             self.arrow_line.points = []
