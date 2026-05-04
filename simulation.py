@@ -75,49 +75,77 @@ class GameScreen(Screen):
         # RIGHT SIDE PANEL with stuff
         # Using FloatLayout for screen-size independent positioning
         
-        # Speedometer (top right) - larger size, keep circular
+        # Speedometer (top right) — small by default, tap to expand
         self.speedometer = Speedometer(performance_monitor=self.monitor)
-        # Using same ratio for width and height so it stays circular
-        self.speedometer.size_hint = (0.25, 0.25)  # bigger and round
-        self.speedometer.pos_hint = {'right': 1.035, 'top': 0.95}  # move right to center
+        self.speedometer.size_hint = (0.10, 0.10)
+        self.speedometer.pos_hint = {'right': 1.015, 'top': 0.95}
         self.root.add_widget(self.speedometer)
 
-        # CPU Usage Label (under speedometer)
+        # CPU Usage Label (under speedometer) — hidden until expanded
         self.cpu_usage_label = Label(
             text="[b]CPU % Usage[/b]",
             markup=True,
-            font_size=Window.height * 0.032,  # 3.2% of screen height (much larger)
+            font_size=Window.height * 0.032,
             color=(1, 1, 1, 1),
             size_hint=(0.15, 0.05),
             pos_hint={'right': 0.99, 'top': 0.68},
             halign='center',
-            valign='middle'
+            valign='middle',
+            opacity=0
         )
         self.cpu_usage_label.bind(size=self.cpu_usage_label.setter('text_size'))
         self.root.add_widget(self.cpu_usage_label)
 
-        # Arduino Graph (under CPU label)
-        self.arduino_graph.size_hint = (0.15, 0.2)
+        self._cpu_expanded = False
+        self.speedometer.bind(on_touch_down=self._on_cpu_touch)
+
+        # Arduino Graph (under CPU label) — starts collapsed
+        self.arduino_graph.size_hint = (0.15, 0)
+        self.arduino_graph.opacity = 0
         self.arduino_graph.pos_hint = {'right': 0.99, 'top': 0.62}
         self.root.add_widget(self.arduino_graph)
 
-        # Arduino Graph Label (under graph)
+        # Arduino Graph Label (under graph) — hidden until graph is expanded
         self.arduino_graph_label = Label(
             text="[b]Arduino Energy Input[/b]",
             markup=True,
-            font_size=Window.height * 0.030,  # 3.0% of screen height (much larger)
+            font_size=Window.height * 0.030,
             color=(1, 1, 1, 1),
             size_hint=(0.15, 0.05),
             pos_hint={'right': 0.99, 'top': 0.41},
             halign='center',
-            valign='middle'
+            valign='middle',
+            opacity=0
         )
         self.arduino_graph_label.bind(size=self.arduino_graph_label.setter('text_size'))
         self.root.add_widget(self.arduino_graph_label)
 
-        # Arduino label: get it from the same game_area
-        self.arduino_label = self.game_area.arduino_data_label
-        self.root.add_widget(self.arduino_label)  # to root, not inside game_area
+        # small toggle button at bottom-right — collapses/restores the arduino graph
+        self._arduino_graph_visible = False
+        self.arduino_toggle_btn = Button(
+            text='+',
+            size_hint=(0.04, 0.032),
+            pos_hint={'right': 0.99, 'y': 0.115},
+            background_normal='',
+            background_color=(0, 0, 0, 0),   # fully transparent — we draw our own bg
+            color=(0.78, 0.82, 0.95, 1),
+            font_size='15sp',
+            bold=True,
+        )
+        with self.arduino_toggle_btn.canvas.before:
+            Color(0.16, 0.18, 0.26, 0.90)
+            self._ard_btn_bg = RoundedRectangle(
+                pos=self.arduino_toggle_btn.pos,
+                size=self.arduino_toggle_btn.size,
+                radius=[(10, 10), (10, 10), (10, 10), (10, 10)]
+            )
+        self.arduino_toggle_btn.bind(
+            pos=lambda *a: setattr(self._ard_btn_bg, 'pos', self.arduino_toggle_btn.pos),
+            size=lambda *a: setattr(self._ard_btn_bg, 'size', self.arduino_toggle_btn.size),
+        )
+        self.arduino_toggle_btn.bind(on_press=lambda x: self._toggle_arduino_graph())
+        self.root.add_widget(self.arduino_toggle_btn)
+
 
         # the spinner thingy in the controls
         self.add_preset_spinner(self.root)
@@ -179,10 +207,10 @@ class GameScreen(Screen):
 
 
     def _build_makey_status(self, root):
-        # Status row (dot + text) stays bottom-left above arduino stuff
+        # Status row sits below the BACK button (bottom-right)
         container = FloatLayout(
             size_hint=(0.22, 0.035),
-            pos_hint={'x': 0.005, 'y': 0.042}
+            pos_hint={'right': 1.06, 'y': 0.005}
         )
 
         self.makey_dot = Label(
@@ -283,6 +311,39 @@ class GameScreen(Screen):
             self.makey_legend_container.opacity = 0
             self.makey_legend_label.text = ''
 
+    def _on_cpu_touch(self, instance, touch):
+        if instance.collide_point(*touch.pos):
+            self._toggle_cpu_panel()
+            return True
+
+    def _toggle_cpu_panel(self):
+        from kivy.animation import Animation
+        if self._cpu_expanded:
+            Animation(size_hint_x=0.10, size_hint_y=0.10, duration=0.25).start(self.speedometer)
+            self.cpu_usage_label.opacity = 0
+            self._cpu_expanded = False
+        else:
+            Animation(size_hint_x=0.25, size_hint_y=0.25, duration=0.25).start(self.speedometer)
+            self.cpu_usage_label.opacity = 1
+            self._cpu_expanded = True
+
+    def _toggle_arduino_graph(self):
+        from kivy.animation import Animation
+        if self._arduino_graph_visible:
+            # fade out first, then collapse height to zero
+            anim = Animation(opacity=0, duration=0.15) + Animation(size_hint_y=0, duration=0.15)
+            anim.start(self.arduino_graph)
+            self.arduino_graph_label.opacity = 0
+            self.arduino_toggle_btn.text = '+'
+            self._arduino_graph_visible = False
+        else:
+            # expand height back to original, then fade in
+            anim = Animation(size_hint_y=0.2, duration=0.15) + Animation(opacity=1, duration=0.15)
+            anim.start(self.arduino_graph)
+            self.arduino_graph_label.opacity = 1
+            self.arduino_toggle_btn.text = '−'
+            self._arduino_graph_visible = True
+
     def add_background(self, root):
         """Add a grey background and bind its size/position to root."""
         with root.canvas.before:
@@ -296,39 +357,8 @@ class GameScreen(Screen):
         self.ui_rect.size = instance.size
 
     def add_preset_spinner(self, root):
-        """Add the preset spinner to the bottom control section."""
-        spinner_h = max(50, int(Window.height * 0.07))
-        self.spinner_row = BoxLayout(orientation='horizontal', size_hint=(0.4, None), height=spinner_h, pos_hint={'center_x': 0.3, 'y': 0.085})
-
-        # Label for the preset spinner - REMOVED (redundant with new Presets button)
-        # preset_label = Label(text="Presets:", size_hint=(0.4, 1, size_hint=(None, None)), font_size=14)
-        # self.preset_label = HoverItem(size_hint=(1, 1), 
-        #                               hoverSource="Graphics/Presets.png", 
-        #                               defaultSource="Graphics/Presets.png", 
-        #                               function=lambda x : None)
-        # self.spinner_row.add_widget(self.preset_label)
-
-        # Spinner for presets
-        # preset_spinner = Spinner(
-        #     text="Solid",
-        #     values=("Solid", "Liquid", "Gas"),
-        #     size_hint=(0.6, 1),
-        #     font_size=14
-        # )
-        # preset_spinner.bind(text=self.on_preset_selected)
-        
-        self.preset_spinner = SpinnerBox(0, ["Solid", "Liquid", "Gas"], size_hint=(1, 1))
-        self.spinner_row.add_widget(self.preset_spinner)
-        
-        self.preset_activate = HoverItem(size_hint=(1, 1), 
-                                         hoverSource="Graphics/Create_Highlighted.png", 
-                                         defaultSource="Graphics/Create.png", 
-                                         function=lambda x : 
-                                             self.generated_selected_preset(self.preset_spinner.possibleValues[self.preset_spinner.value]))
-        self.spinner_row.add_widget(self.preset_activate)
-
-        # Add the spinner row to the root layout
-        root.add_widget(self.spinner_row)
+        # spinner is now part of the main bottom row — nothing to do here
+        pass
 
     def generated_selected_preset(self, preset):
         """when user selects a preset, generate that type of molecule config"""
@@ -500,13 +530,13 @@ class GameScreen(Screen):
             self.ui_panel_visible = False
             self.remove_glow_effect()
             # dont hover (no white square)
-            self.presets_button.hoverSource = "Graphics/Presets.png"
+            self.presets_button.hoverSource = "Graphics/Why.png"
         else:
             self.ui_panel.opacity = 1  # Show
             self.ui_panel_visible = True
             self.add_glow_effect()
             # no hover so glow shows right
-            self.presets_button.hoverSource = "Graphics/Presets.png"
+            self.presets_button.hoverSource = "Graphics/Why.png"
             # Force button to show default image
             self.presets_button.source = self.presets_button.defaultSource
     
@@ -588,21 +618,27 @@ class GameScreen(Screen):
             self.presets_button.unbind(pos=self.update_glow_position, size=self.update_glow_position)
 
     def create_bottom_controls(self):
-        """Create the bottom controls with switches and buttons (responsive sizing)."""
-        # button row height = 8% of screen height
+        """One single row at the bottom: preset picker + all control buttons."""
         button_height = Window.height * 0.08
         bottom_row = BoxLayout(
             orientation='horizontal',
-            size_hint=(0.9, None),
+            size_hint=(1.0, None),
             height=button_height,
             pos_hint={'center_x': 0.5, 'center_y': 0.05}
         )
 
-        # forces_container, _ = self.create_forces_switch()
-        # forces_visible_container, _ = self.create_forces_visible_switch()
-        self.presets_button = self.create_hover_button("Presets", self.toggle_sliders)
-        # dont hover at start - keeps glow looking good
-        self.presets_button.hoverSource = "Graphics/Presets.png"
+        # preset picker (◄ SOLID ►) + create button — live here now
+        self.preset_spinner = SpinnerBox(0, ["Solid", "Liquid", "Gas"], size_hint=(1.4, 1))
+        self.preset_activate = HoverItem(
+            size_hint=(1, 1),
+            hoverSource="Graphics/Create_Highlighted.png",
+            defaultSource="Graphics/Create.png",
+            function=lambda x: self.generated_selected_preset(
+                self.preset_spinner.possibleValues[self.preset_spinner.value])
+        )
+
+        self.presets_button = self.create_hover_button("Why", self.toggle_sliders)
+        self.presets_button.hoverSource = "Graphics/Why_Highlighted.png"
         self.use_forces_button = self.create_hover_button("Forces-Off", self.toggle_intermolecular_forces)
         self.see_forces_button = self.create_hover_button("Hide-Forces", self.toggle_forces_visible)
         self.clear_button = self.create_hover_button("Clear", self.clear_game_area)
@@ -610,8 +646,8 @@ class GameScreen(Screen):
         self.verlet_button = self.create_hover_button("Verlet-Off", self.toggle_verlet_mode)
         self.back_button = self.create_hover_button("Back", self.go_back)
 
-        # bottom_row.add_widget(forces_container)
-        # bottom_row.add_widget(forces_visible_container)
+        bottom_row.add_widget(self.preset_spinner)
+        bottom_row.add_widget(self.preset_activate)
         bottom_row.add_widget(self.presets_button)
         bottom_row.add_widget(self.use_forces_button)
         bottom_row.add_widget(self.see_forces_button)

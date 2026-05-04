@@ -35,7 +35,7 @@ from kivy.animation import Animation
 
 class GameLayout(Widget):
 
-    intermolecular_forces = BooleanProperty(True)  # Toggle for intermolecular forces
+    intermolecular_forces = BooleanProperty(False)  # forces off by default — user enables them
     epsilon = NumericProperty(1.0)  # Lennard-Jones potential depth
     sigma = NumericProperty(1.0)  # Lennard-Jones potential sigma
     spring_constant = 100.0
@@ -136,17 +136,6 @@ class GameLayout(Widget):
         self.enable_lj_cutoff = True
         self.lj_cutoff_sigma = 2.5  # cutoff distance with sigma value
 
-        self.arduino_data_label = Label(
-            text="Arduino X: 0.00\nArduino Y: 0.00\nArduino Z: 0.00\nGravity Scale: 0.00",
-            size_hint=(0.2, 0.15),  # Take up 20% width and 15% height of parent
-            pos_hint={"x": 0.02, "top": 0.98},  # Near top-left corner
-            color=(1, 1, 1, 1),  # white
-            bold=True,
-            font_size=Window.height * 0.035,  # 3.5% of screen height (much larger)
-            halign='left',
-            valign='top'
-        )
-        self.arduino_data_label.bind(size=self.arduino_data_label.setter('text_size'))
 
         # floating flash label — shows what a Makey Makey key just did
         self._feedback_label = Label(
@@ -607,14 +596,7 @@ class GameLayout(Widget):
             # set gravity based on shaking
             self.gravity = 9.8 * scale_factor
             
-            # show shake on the label
-            self.arduino_data_label.text = (
-                f"Arduino X: {x:.0f}\n"
-                f"Arduino Y: {y:.0f}\n"
-                f"Arduino Z: {z:.0f}\n"
-                f"Shake Intensity: {self.arduino_activity:.0f}%"
-            )
-            
+
             # Feed shake intensity to graph along with raw values
             if self.arduino_graph:
                 self.arduino_graph.feed_arduino(x, y, z, self.arduino_activity)
@@ -885,8 +867,8 @@ class GameLayout(Widget):
         except Exception:
             print("[Slider boost error] trigger_boost unavailable")
 
-        # medium attraction, normal spacing, gravity pulls down
-        self._apply_physics_preset(gravity=3.0, epsilon=2.0, sigma=1.0)
+        # medium attraction, normal spacing, no gravity (liquids float in simulation space)
+        self._apply_physics_preset(gravity=0, epsilon=2.0, sigma=1.0)
 
         self.clear_molecules()
         for _ in range(50):
@@ -904,8 +886,8 @@ class GameLayout(Widget):
         except Exception:
             print("[Slider boost error] trigger_boost unavailable")
 
-        # Weak interactions (low epsilon), large spacing (high sigma), minimal gravity
-        self._apply_physics_preset(gravity=0.5, epsilon=0.3, sigma=1.5)
+        # Weak interactions (low epsilon), large spacing (high sigma), no gravity (gas fills space freely)
+        self._apply_physics_preset(gravity=0, epsilon=0.3, sigma=1.5)
 
         self.clear_molecules()
         for _ in range(15):
