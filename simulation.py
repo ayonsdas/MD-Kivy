@@ -636,6 +636,18 @@ class GameScreen(Screen):
             function=lambda x: self.generated_selected_preset(
                 self.preset_spinner.possibleValues[self.preset_spinner.value])
         )
+        with self.preset_activate.canvas.after:
+            Color(0.45, 0.48, 0.56, 0.85)
+            _create_border = Line(rectangle=(self.preset_activate.x, self.preset_activate.y,
+                                             self.preset_activate.width, self.preset_activate.height), width=1.5)
+        self.preset_activate.bind(
+            pos=lambda *a: setattr(_create_border, 'rectangle',
+                (self.preset_activate.x, self.preset_activate.y,
+                 self.preset_activate.width, self.preset_activate.height)),
+            size=lambda *a: setattr(_create_border, 'rectangle',
+                (self.preset_activate.x, self.preset_activate.y,
+                 self.preset_activate.width, self.preset_activate.height)),
+        )
 
         self.presets_button = self.create_hover_button("Why", self.toggle_sliders)
         self.presets_button.hoverSource = "Graphics/Why_Highlighted.png"
@@ -685,13 +697,19 @@ class GameScreen(Screen):
 
     def create_hover_button(self, label, callback):
         """Helper to create buttons with hover effects (responsive sizing)."""
-        # buttons fill up their space
-        return HoverItem(
+        btn = HoverItem(
             size_hint=(1, 1),
             hoverSource=f"Graphics/{label}_Highlighted.png",
             defaultSource=f"Graphics/{label}.png",
             function=lambda x: callback()
         )
+        with btn.canvas.after:
+            Color(0.45, 0.48, 0.56, 0.85)
+            border_rect = Line(rectangle=(btn.x, btn.y, btn.width, btn.height), width=1.5)
+        def _update_border(*args):
+            border_rect.rectangle = (btn.x, btn.y, btn.width, btn.height)
+        btn.bind(pos=_update_border, size=_update_border)
+        return btn
         
     def toggle_intermolecular_forces(self):
         """Toggle the usage of intermolecular forces."""
@@ -745,9 +763,7 @@ class GameScreen(Screen):
 
     def clear_game_area(self):
         """Clear the game area of all molecules and bonds."""
-        self.game_area.clear_widgets()
-        self.game_area.molecules.clear()
-        self.game_area.clear_bonds()
+        self.game_area.clear_molecules()
 
     # def create_forces_switch(self):
     #     """Create a switch for intermolecular forces."""

@@ -126,7 +126,6 @@ class GameLayout(Widget):
         self.scale = 10 ** (2)
         self.gravity = 0  # start with no gravity
         self.delta = 1 / 60.0  # Time step
-        self.selected_molecule = None  # first molecule we touched for bonding
         self.simulation_running = False  # is the sim actually running rn
         self.size_factor = 0.6
         self.molecule_radius = self.size[0] * self.molecule_radius_ratio * self.size_factor # Radius of the molecule
@@ -338,12 +337,17 @@ class GameLayout(Widget):
 
     def create_bond(self, molecule1, molecule2):
         """create a bond line between two molecules"""
-        if (molecule1, molecule2) not in self.bonds and (molecule2, molecule1) not in self.bonds:
-
-        # make a line between the molecules
-            with self.canvas:
-                line = Line(points=[molecule1.center_x, molecule1.center_y, molecule2.center_x, molecule2.center_y], width=2)
-                self.bonds[(molecule1, molecule2)] = line
+        if (molecule1, molecule2) in self.bonds or (molecule2, molecule1) in self.bonds:
+            return
+        # Don't allow bonds between distant molecules — would create a long crossing line
+        dist = Vector(molecule1.pos).distance(Vector(molecule2.pos))
+        if dist > (molecule1.radius + molecule2.radius) * 6:
+            return
+        with self.canvas:
+            color = Color(0.4, 0.85, 1.0, 0.65)
+            line = Line(points=[molecule1.pos[0], molecule1.pos[1],
+                                 molecule2.pos[0], molecule2.pos[1]], width=2)
+        self.bonds[(molecule1, molecule2)] = (line, color)
 
     def remove_bond(self, molecule1, molecule2):
         """delete a bond between two molecules"""
@@ -353,15 +357,17 @@ class GameLayout(Widget):
             bond = (molecule2, molecule1)
         else:
             return False
-        
-        self.canvas.remove(self.bonds[bond])
+        line, color = self.bonds[bond]
+        self.canvas.remove(line)
+        self.canvas.remove(color)
         del self.bonds[bond]
         return True
-            
+
     def clear_bonds(self):
         """remove all bonds from the canvas"""
-        for bond, line in self.bonds.items():
+        for bond, (line, color) in self.bonds.items():
             self.canvas.remove(line)
+            self.canvas.remove(color)
         self.bonds.clear()
     
     def periodic_cleanup(self, dt):
@@ -384,15 +390,13 @@ class GameLayout(Widget):
 
     def update_bond_lines(self):
         """update where all the bond lines are drawn"""
-        with self.canvas:
-            Color(0.4, 0.85, 1.0, 0.65)  # Cyan glow instead of flat white
-            for bond in self.bonds:
-                line = self.bonds[bond]
-                line.points = [bond[0].center_x, bond[0].center_y, bond[1].center_x, bond[1].center_y]
+        for bond, (line, _) in self.bonds.items():
+            line.points = [bond[0].pos[0], bond[0].pos[1],
+                           bond[1].pos[0], bond[1].pos[1]]
                 
     def apply_spring_force(self):
         """apply spring forces to bonded molecules"""
-        for molecule1, molecule2 in self.bonds:
+        for (molecule1, molecule2) in self.bonds:
             # figure out spring force between molecules (Hooke's law)
             r12 = Vector(molecule2.center_x - molecule1.center_x, molecule2.center_y - molecule1.center_y)
             distance = r12.length()
@@ -432,32 +436,12 @@ class GameLayout(Widget):
         self.on_resize()
 
     def on_touch_down(self, touch):
-        # if self.is_safe_touch(touch):
-        #     self.spawn_molecule_at_touch(touch)
-        # return
-        """when user touches screen, select a molecule or create a bond between them"""
-        
-        selected_molecule = None
-
-        # if touch near a molecule, maybe select it
+        """Spawn a molecule where the user taps (empty space only)."""
         for molecule in self.molecules:
             if Vector(touch.pos).distance(molecule.center) <= molecule.radius * 2:
-                selected_molecule = molecule
-                break
-
-        if selected_molecule:
-            if self.selected_molecule:
-                # First molecule selected
-                if not self.remove_bond(selected_molecule, self.selected_molecule):
-                    self.create_bond(selected_molecule, self.selected_molecule)
-                self.selected_molecule = None
-            else:
-                self.selected_molecule = selected_molecule
-        else:
-            # If no molecule is selected, spawn a new molecule at the touch position
-            if self.is_safe_touch(touch):
-                self.spawn_molecule_at_touch(touch)
-            self.selected_molecule = None
+                return  # tapped an existing molecule — do nothing
+        if self.is_safe_touch(touch):
+            self.spawn_molecule_at_touch(touch)
 
     def is_safe_touch(self, touch):
         """
@@ -899,6 +883,7 @@ class GameLayout(Widget):
 
     def clear_molecules(self):
         """remove all molecules from the game"""
+        self.clear_bonds()
         for molecule in self.molecules:
             self.remove_widget(molecule)
         self.molecules.clear()

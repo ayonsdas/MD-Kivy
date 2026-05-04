@@ -52,14 +52,6 @@ class Molecule(Widget):
                 size=(mr * 2, mr * 2)
             )
 
-            # white specular dot - small highlight to give the ball a 3D look
-            self.spec_color = Color(1.0, 1.0, 1.0, 0.80)
-            sr = rad * 0.22
-            self.spec_shape = Ellipse(
-                pos=(cx + rad * 0.28, cy + rad * 0.32),
-                size=(sr * 2, sr * 2)
-            )
-
             # force arrow - cyan to orange shows how strong the force is
             self.arrow_color = Color(0, 0.8, 1, 1)
             self.arrow_line = Line(points=[], width=max(1.0, 1.2 * rad / 10), cap='none')
@@ -79,10 +71,6 @@ class Molecule(Widget):
         mr = rad * 0.85
         self.molecule_shape.pos  = (cx - mr + rad * 0.04, cy - mr + rad * 0.06)
         self.molecule_shape.size = (mr * 2, mr * 2)
-
-        sr = rad * 0.22
-        self.spec_shape.pos  = (cx + rad * 0.28, cy + rad * 0.32)
-        self.spec_shape.size = (sr * 2, sr * 2)
 
     def fix_speed(self):
         if self.total_velocity.length() > self.speed_cap:
@@ -208,20 +196,23 @@ class Molecule(Widget):
         self.total_force += force_to_add
 
     def update_force_arrow(self):
-        if not self.forces_visible:
+        if not self.forces_visible or self.total_force.length() < 1e-9:
             self.arrow_line.points = []
             return
-        if self.total_force.length():
-            force_magnitude = math.log(self.total_force.length()) / math.log(10) + 5
-        else:
-            force_magnitude = 0
+        force_magnitude = math.log(self.total_force.length()) / math.log(10) + 5
         t = max(min(force_magnitude / 5, 1), 0)
-        arrow_length = self.radius * 1.8 * t
-        # skip short arrows — below this they render as a dot blob, not a line
-        if arrow_length < self.radius * 1.3:
+        # extra length the arrow extends past the sphere surface
+        arrow_extra = self.radius * 1.5 * t
+        # only draw when the stub would be clearly visible past the glow ring
+        if arrow_extra < self.radius * 0.8:
             self.arrow_line.points = []
             return
-        arrow_endpoint = Vector(self.center) + self.total_force.normalize() * arrow_length
-        self.arrow_line.points = [self.center_x, self.center_y, arrow_endpoint[0], arrow_endpoint[1]]
+        force_dir = self.total_force.normalize()
+        cx, cy = self.pos[0], self.pos[1]  # visual center (pos IS the center in this codebase)
+        sx = cx + force_dir[0] * self.radius
+        sy = cy + force_dir[1] * self.radius
+        ex = cx + force_dir[0] * (self.radius + arrow_extra)
+        ey = cy + force_dir[1] * (self.radius + arrow_extra)
+        self.arrow_line.points = [sx, sy, ex, ey]
         # cyan when force is small, turns orange when its strong
         self.arrow_color.rgb = [t, 0.8 * (1 - t) + 0.3 * t, 1.0 * (1 - t)]
