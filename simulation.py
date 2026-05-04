@@ -459,20 +459,26 @@ class GameScreen(Screen):
     # Defines call Back Function HEre for Slider Box!!!!
     def create_sliders(self):
         """Create the slider UI for gravity, delta, sigma, epsilon, speed, and size."""
-        sp_x = max(8,  int(Window.width  * 0.010))   # ~1 % of screen width
-        sp_y = max(6,  int(Window.height * 0.009))   # ~0.9 % of screen height
+        sp_x = max(8,  int(Window.width  * 0.010))
+        sp_y = max(6,  int(Window.height * 0.009))
         pad  = max(5,  int(Window.height * 0.007))
-        ui_panel = GridLayout(cols=3,
-                              rows=2,
-                              size_hint=(0.8, 0.15),
-                              pos_hint={'center_x': 0.5, 'center_y': 0.22},
-                              spacing=(sp_x, sp_y),
-                              padding=[pad, pad, pad, pad]
+
+        ui_panel = BoxLayout(
+            orientation='vertical',
+            size_hint=(0.8, 0.20),
+            pos_hint={'center_x': 0.5, 'center_y': 0.22},
+        )
+
+        slider_grid = GridLayout(
+            cols=3, rows=2,
+            size_hint=(1, 0.78),
+            spacing=(sp_x, sp_y),
+            padding=[pad, pad, pad, pad]
         )
 
         gravity_box = SliderBox(
             "Gravity (W increase, S decrease)",
-            0, 10, 0, 0.01, self.game_area.set_gravity, size_hint = (1, 1)
+            0, 10, 0, 0.01, self.game_area.set_gravity, size_hint=(1, 1)
         )
         epsilon_box = SliderBox(
             "Epsilon (Potential Depth used for Lennard-Jones force between Molecules) (E increase, D decrease)",
@@ -494,15 +500,14 @@ class GameScreen(Screen):
             "Size of Molecules (U increase, J decrease)",
             0.2, 1, 0.6, 0.05, self.game_area.set_size
         )
-        
-        # Add sliders to the grid layout in a 3x2 formation
-        ui_panel.add_widget(gravity_box)
-        ui_panel.add_widget(epsilon_box)
-        ui_panel.add_widget(sigma_box)
-        ui_panel.add_widget(delta_box)
-        ui_panel.add_widget(speed_box)
-        ui_panel.add_widget(size_box)
-        
+
+        slider_grid.add_widget(gravity_box)
+        slider_grid.add_widget(epsilon_box)
+        slider_grid.add_widget(sigma_box)
+        slider_grid.add_widget(delta_box)
+        slider_grid.add_widget(speed_box)
+        slider_grid.add_widget(size_box)
+
         self.game_area.gravity_slider = gravity_box.slider
         self.game_area.epsilon_slider = epsilon_box.slider
         self.game_area.sigma_slider = sigma_box.slider
@@ -510,6 +515,16 @@ class GameScreen(Screen):
         self.game_area.speed_slider = speed_box.slider
         self.game_area.size_slider = size_box.slider
 
+        # Verlet/Euler toggle row — centred below the sliders
+        verlet_row = BoxLayout(orientation='horizontal', size_hint=(1, 0.22))
+        self.verlet_button = self.create_hover_button("Verlet-Off", self.toggle_verlet_mode)
+        self.verlet_button.size_hint = (0.25, 1)
+        verlet_row.add_widget(Widget(size_hint=(0.375, 1)))
+        verlet_row.add_widget(self.verlet_button)
+        verlet_row.add_widget(Widget(size_hint=(0.375, 1)))
+
+        ui_panel.add_widget(slider_grid)
+        ui_panel.add_widget(verlet_row)
 
         return ui_panel
     
@@ -652,20 +667,35 @@ class GameScreen(Screen):
         self.presets_button = self.create_hover_button("Why", self.toggle_sliders)
         self.presets_button.hoverSource = "Graphics/Why_Highlighted.png"
         self.use_forces_button = self.create_hover_button("Forces-Off", self.toggle_intermolecular_forces)
-        self.see_forces_button = self.create_hover_button("Hide-Forces", self.toggle_forces_visible)
+        self.bonds_button = HoverItem(
+            size_hint=(1, 1),
+            hoverSource="Graphics/Vectors_Highlighted.png",
+            defaultSource="Graphics/Vectors.png",
+            function=lambda x: self.toggle_force_arrows()
+        )
+        with self.bonds_button.canvas.after:
+            Color(0.45, 0.48, 0.56, 0.85)
+            _bonds_border = Line(rectangle=(self.bonds_button.x, self.bonds_button.y,
+                                            self.bonds_button.width, self.bonds_button.height), width=1.5)
+        self.bonds_button.bind(
+            pos=lambda *a: setattr(_bonds_border, 'rectangle',
+                (self.bonds_button.x, self.bonds_button.y,
+                 self.bonds_button.width, self.bonds_button.height)),
+            size=lambda *a: setattr(_bonds_border, 'rectangle',
+                (self.bonds_button.x, self.bonds_button.y,
+                 self.bonds_button.width, self.bonds_button.height)),
+        )
         self.clear_button = self.create_hover_button("Clear", self.clear_game_area)
         self.start_stop_button = self.create_hover_button("Start", self.toggle_simulation)
-        self.verlet_button = self.create_hover_button("Verlet-Off", self.toggle_verlet_mode)
         self.back_button = self.create_hover_button("Back", self.go_back)
 
         bottom_row.add_widget(self.preset_spinner)
         bottom_row.add_widget(self.preset_activate)
         bottom_row.add_widget(self.presets_button)
         bottom_row.add_widget(self.use_forces_button)
-        bottom_row.add_widget(self.see_forces_button)
+        bottom_row.add_widget(self.bonds_button)
         bottom_row.add_widget(self.start_stop_button)
         bottom_row.add_widget(self.clear_button)
-        bottom_row.add_widget(self.verlet_button)
         bottom_row.add_widget(self.back_button)
         return bottom_row
     
@@ -723,6 +753,17 @@ class GameScreen(Screen):
             self.use_forces_button.source = self.use_forces_button.hoverSource if self.use_forces_button.use else self.use_forces_button.defaultSource
         self.game_area.toggle_intermolecular_forces()
         
+    def toggle_force_arrows(self):
+        """Toggle directional force arrows on molecules."""
+        if self.game_area.forces_visible:
+            self.bonds_button.hoverSource = "Graphics/Vectors_Highlighted.png"
+            self.bonds_button.defaultSource = "Graphics/Vectors.png"
+        else:
+            self.bonds_button.hoverSource = "Graphics/Hide-Vecs_Highlighted.png"
+            self.bonds_button.defaultSource = "Graphics/Hide-Vecs.png"
+        self.bonds_button.source = self.bonds_button.hoverSource if self.bonds_button.use else self.bonds_button.defaultSource
+        self.game_area.toggle_force_arrows()
+
     def toggle_forces_visible(self):
         """Toggle the visibility of forces."""
         if self.game_area.forces_visible:

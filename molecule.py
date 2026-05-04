@@ -2,7 +2,6 @@ from kivy.uix.widget import Widget
 from kivy.vector import Vector
 from kivy.graphics import Color, Ellipse, Rectangle, Line
 from kivy.properties import NumericProperty, ListProperty, BooleanProperty
-import math
 
 class Molecule(Widget):
     color_slow = [5, 0, 102, 255]
@@ -52,8 +51,7 @@ class Molecule(Widget):
                 size=(mr * 2, mr * 2)
             )
 
-            # force arrow - cyan to orange shows how strong the force is
-            self.arrow_color = Color(0, 0.8, 1, 1)
+            self.arrow_color = Color(0, 0.8, 1, 0)  # alpha 0 = hidden until toggled on
             self.arrow_line = Line(points=[], width=max(1.0, 1.2 * rad / 10), cap='none')
 
     def _update_shape_positions(self):
@@ -196,23 +194,18 @@ class Molecule(Widget):
         self.total_force += force_to_add
 
     def update_force_arrow(self):
-        if not self.forces_visible or self.total_force.length() < 1e-9:
+        if not self.forces_visible or self.total_velocity.length() < 1e-9:
             self.arrow_line.points = []
+            self.arrow_color.a = 0
             return
-        force_magnitude = math.log(self.total_force.length()) / math.log(10) + 5
-        t = max(min(force_magnitude / 5, 1), 0)
-        # extra length the arrow extends past the sphere surface
-        arrow_extra = self.radius * 1.5 * t
-        # only draw when the stub would be clearly visible past the glow ring
-        if arrow_extra < self.radius * 0.8:
-            self.arrow_line.points = []
-            return
-        force_dir = self.total_force.normalize()
-        cx, cy = self.pos[0], self.pos[1]  # visual center (pos IS the center in this codebase)
-        sx = cx + force_dir[0] * self.radius
-        sy = cy + force_dir[1] * self.radius
-        ex = cx + force_dir[0] * (self.radius + arrow_extra)
-        ey = cy + force_dir[1] * (self.radius + arrow_extra)
+        t = min(self.total_velocity.length(), self.speed_cap) / self.speed_cap
+        arrow_len = self.radius * 0.6 + self.radius * 2.5 * t
+        vel_dir = self.total_velocity.normalize()
+        cx, cy = self.pos[0], self.pos[1]
+        sx = cx + vel_dir[0] * self.radius
+        sy = cy + vel_dir[1] * self.radius
+        ex = cx + vel_dir[0] * (self.radius + arrow_len)
+        ey = cy + vel_dir[1] * (self.radius + arrow_len)
         self.arrow_line.points = [sx, sy, ex, ey]
-        # cyan when force is small, turns orange when its strong
         self.arrow_color.rgb = [t, 0.8 * (1 - t) + 0.3 * t, 1.0 * (1 - t)]
+        self.arrow_color.a = 0.9

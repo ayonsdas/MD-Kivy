@@ -1,6 +1,7 @@
 from kivy.uix.widget import Widget
 from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle, Line
+from kivy.graphics.instructions import InstructionGroup
 from kivy.properties import NumericProperty, BooleanProperty
 from kivy.vector import Vector
 from molecule import Molecule  # Import the Molecule class
@@ -61,6 +62,9 @@ class GameLayout(Widget):
             Color(0.01, 0.01, 0.04, 1)  # Very dark navy — richer than pure black
             self.rect = Rectangle(pos=self.pos, size=self.size)
         self.bind(pos=self.update_rect, size=self.update_rect)
+
+        self._lj_viz_group = InstructionGroup()
+        self.canvas.add(self._lj_viz_group)
 
         self.frame_counter = 0   # added this to make it less
         self.performance_monitor = performance_monitor
@@ -129,7 +133,8 @@ class GameLayout(Widget):
         self.simulation_running = False  # is the sim actually running rn
         self.size_factor = 0.6
         self.molecule_radius = self.size[0] * self.molecule_radius_ratio * self.size_factor # Radius of the molecule
-        self.forces_visible = True
+        self.forces_visible = False  # directional force arrows — off by default
+        self.bonds_visible = False   # LJ viz lines — off by default, tied to intermolecular_forces
 
         # use LJ cutoff so it doesnt lag
         self.enable_lj_cutoff = True
@@ -379,10 +384,10 @@ class GameLayout(Widget):
             # if there are no molecules clean up the canvas
             if len(self.molecules) == 0:
                 self.canvas.clear()
-                # redraw the background
                 with self.canvas.before:
                     Color(0, 0, 0, 1)
                     self.rect = Rectangle(pos=self.pos, size=self.size)
+                self.canvas.add(self._lj_viz_group)
             
             print(f"[DEBUG] cleanup: {len(self.molecules)} molecules, {len(self.bonds)} bonds")
         except Exception as e:
@@ -436,10 +441,9 @@ class GameLayout(Widget):
         self.on_resize()
 
     def on_touch_down(self, touch):
-        """Spawn a molecule where the user taps (empty space only)."""
-        for molecule in self.molecules:
-            if Vector(touch.pos).distance(molecule.center) <= molecule.radius * 2:
-                return  # tapped an existing molecule — do nothing
+        """Spawn a molecule where the user taps."""
+        if not self.collide_point(*touch.pos):
+            return super().on_touch_down(touch)
         if self.is_safe_touch(touch):
             self.spawn_molecule_at_touch(touch)
 
@@ -599,7 +603,6 @@ class GameLayout(Widget):
             molecule.add_force(Vector(0, -self.gravity))
 
         # only resize molecules when the radius actually changes (slider moved or window resized)
-        # fix_radius was being called every frame for every molecule before - thats why it was so laggy!
         new_radius = self.size[0] * self.molecule_radius_ratio * self.size_factor
         if abs(new_radius - self._last_molecule_radius) > 0.1:
             self.molecule_radius = new_radius
@@ -609,17 +612,17 @@ class GameLayout(Widget):
         self.apply_spring_force()
 
         self.frame_counter += 1
-        if self.frame_counter % 5 == 0:  # update bond lines every 5 frames
+        if self.frame_counter % 5 == 0:
             self.update_bond_lines()
+            if self.bonds_visible:
+                self._update_lj_viz()
         if self.frame_counter % 10 == 0:
-            visible = random.sample(self.molecules, min(len(self.molecules), 10))  # just update 10
+            visible = random.sample(self.molecules, min(len(self.molecules), 10))
             for molecule in visible:
                 molecule.update_color_based_on_speed()
                 if self.forces_visible:
                     molecule.update_force_arrow()
-            # update bonds too
             self.update_bond_lines()
-
 
         # figure out cutoff distance squared if needed
         if self.enable_lj_cutoff:
@@ -660,24 +663,11 @@ class GameLayout(Widget):
                 molecule1.move_nonVerlet()
 
             # Physics calculations with Arduino scale factor applied
-            # turn pixel speeds to normal units
-            # pixels are like 0-500 per frame so normalize that down
             velocity_magnitude = molecule1.total_velocity.length()
-            normalized_velocity = velocity_magnitude / 50.0  # Scale down by 50x
-            
-            # Kinetic Energy: KE = 0.5 * m * v^2 (mass assumed = 1)
+            normalized_velocity = velocity_magnitude / 50.0
             kinetic_energy = 0.5 * (normalized_velocity ** 2)
-            
-            # Total Energy: includes kinetic energy amplified by Arduino movement
-            # Arduino shaking adds energy (simulates external heating/vibration)
             total_energy += kinetic_energy * scale_factor
-            
-            # temp is just how much molecules move around
-            # more movement = higher temp
             temperature += kinetic_energy * scale_factor
-            
-            # pressure is when they smash into walls
-            # sum up speed and thats it
             momentum = (abs(molecule1.total_velocity.x) + abs(molecule1.total_velocity.y)) / 50.0
             pressure += momentum * scale_factor
 
@@ -768,8 +758,71 @@ class GameLayout(Widget):
         self.delta = value
 
     def toggle_intermolecular_forces(self):
-        """Toggle intermolecular forces on or off."""
+        """Toggle LJ force computation and visualization lines together."""
         self.intermolecular_forces = not self.intermolecular_forces
+        self.bonds_visible = not self.bonds_visible
+        if not self.bonds_visible:
+            self._lj_viz_group.clear()
+
+    def toggle_force_arrows(self):
+        """Toggle directional force arrows on each molecule."""
+        self.forces_visible = not self.forces_visible
+        for molecule in self.molecules:
+            molecule.forces_visible = self.forces_visible
+            molecule.update_force_arrow()
+
+    def _update_lj_viz(self):
+        """Draw LJ potential interaction lines between molecule pairs.
+
+        Reduced distance r* = r / (sigma * scale).
+        Force is repulsive  for r* < 2^(1/6) ~ 1.122  -> red/orange line.
+        Force is attractive for r* > 2^(1/6)           -> cyan/blue line, fades at cutoff.
+        Line disappears near the equilibrium where force ~ 0.
+        """
+        self._lj_viz_group.clear()
+        if not self.bonds_visible or len(self.molecules) < 2:
+            return
+
+        sigma_px  = max(self.sigma * self.scale, 1.0)
+        cutoff_px = self.lj_cutoff_sigma * sigma_px
+        equil     = 2.0 ** (1.0 / 6.0)   # r* at LJ force = 0, ~1.122
+
+        for i in range(len(self.molecules)):
+            mol1 = self.molecules[i]
+            for j in range(i + 1, len(self.molecules)):
+                mol2 = self.molecules[j]
+                dx = mol2.pos[0] - mol1.pos[0]
+                dy = mol2.pos[1] - mol1.pos[1]
+                r  = (dx * dx + dy * dy) ** 0.5
+                if r < 1.0 or r > cutoff_px:
+                    continue
+
+                r_star = r / sigma_px
+                r_star = max(r_star, 0.6)   # clamp to avoid extreme values
+
+                # reduced LJ force: F* = 4(12/r*^13 - 6/r*^7), positive = repulsive
+                f_star = 4.0 * (12.0 / r_star ** 13 - 6.0 / r_star ** 7)
+                f_abs  = abs(f_star)
+                # normalise for colour/width — log scale so tiny forces stay visible
+                strength = min(math.log1p(f_abs) / 6.0, 1.0)
+
+                if r_star < equil:
+                    # repulsive — orange at weak, bright red at strong
+                    self._lj_viz_group.add(Color(1.0, 0.6 - 0.5 * strength, 0.0, 0.35 + 0.55 * strength))
+                    lw = 1.0 + 3.0 * strength
+                else:
+                    # attractive — bright cyan near equilibrium, fades to nothing at cutoff
+                    fade = 1.0 - (r_star - equil) / (self.lj_cutoff_sigma - equil)
+                    fade = max(fade, 0.0)
+                    if fade < 0.05:
+                        continue
+                    self._lj_viz_group.add(Color(0.0, 0.7 + 0.3 * fade, 1.0, 0.15 + 0.55 * fade))
+                    lw = 1.0 + 1.5 * fade
+
+                self._lj_viz_group.add(Line(
+                    points=[mol1.pos[0], mol1.pos[1], mol2.pos[0], mol2.pos[1]],
+                    width=lw
+                ))
 
     def toggle_forces_visible(self):
         """Toggle intermolecular forces on or off."""
