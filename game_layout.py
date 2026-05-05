@@ -131,6 +131,8 @@ class GameLayout(Widget):
         self.gravity = 0  # start with no gravity
         self.delta = 1 / 60.0  # Time step
         self.simulation_running = False  # is the sim actually running rn
+        self.update_event = None         # Clock event handle for the main update loop
+        self.energy_bar = None           # EnergyBar widget — set by simulation.py
         self.size_factor = 0.6
         self.molecule_radius = self.size[0] * self.molecule_radius_ratio * self.size_factor # Radius of the molecule
         self.forces_visible = False  # directional force arrows — off by default
@@ -187,8 +189,6 @@ class GameLayout(Widget):
             'size_decrease' : 'j'
         }
 
-        # set up the update schedule
-        self.update_event = None
         if not self._keyboard_initialized:
             self.setup_keyboard()
             self._keyboard_initialized = True
@@ -479,7 +479,12 @@ class GameLayout(Widget):
         """start the update loop"""
         if not self.simulation_running:
             self.simulation_running = True
-            self._base_interval = 1 / 30.0
+            if self.update_event is not None:
+                try:
+                    self.update_event.cancel()
+                except Exception:
+                    pass
+            self._base_interval = (1 / 30.0) / self._speed_factor
             self._current_interval = self._base_interval * self._governor_multiplier
             self.update_event = Clock.schedule_interval(self.update, self._current_interval)
 
@@ -494,6 +499,24 @@ class GameLayout(Widget):
             # clean up memory when we stop
             gc.collect()
 
+    def reset_simulation(self):
+        """Full emergency reset — stop, clear all molecules, reset state flags."""
+        self.stop_simulation()
+        self.clear_molecules()
+        self._lj_viz_group.clear()
+        self.intermolecular_forces = False
+        self.bonds_visible = False
+        self.forces_visible = False
+
+    def inject_energy(self, amount):
+        """Boost all molecule velocities randomly — called by slider or EnergyInputWidget."""
+        boost = amount * 360
+        for mol in self.molecules:
+            angle = random.uniform(0, 2 * math.pi)
+            mol.total_velocity += Vector(boost * math.cos(angle), boost * math.sin(angle))
+            mol.fix_speed()
+
+
     def set_speed(self, speed_factor):
         """change simulation speed"""
         self._speed_factor = max(0.1, float(speed_factor))
@@ -502,6 +525,8 @@ class GameLayout(Widget):
 
     def _apply_update_interval(self):
         """apply the interval based on governor settings"""
+        if not self.simulation_running:
+            return
         effective = self._base_interval * self._governor_multiplier
         if self.update_event is not None:
             try:
@@ -659,11 +684,15 @@ class GameLayout(Widget):
                 molecule1.speed_cap = 500
                 molecule1.move(self.delta)
             else:
-                molecule1.speed_cap = 8
-                molecule1.move_nonVerlet()
+                molecule1.speed_cap = 2000  # higher cap lets Euler energy drift show
+                molecule1.move_nonVerlet(self.delta)
 
             # Physics calculations with Arduino scale factor applied
-            velocity_magnitude = molecule1.total_velocity.length()
+            try:
+                velocity_magnitude = molecule1.total_velocity.length()
+            except (OverflowError, ValueError):
+                molecule1.total_velocity = Vector(0, 0)
+                velocity_magnitude = 0.0
             normalized_velocity = velocity_magnitude / 50.0
             kinetic_energy = 0.5 * (normalized_velocity ** 2)
             total_energy += kinetic_energy * scale_factor
@@ -671,9 +700,22 @@ class GameLayout(Widget):
             momentum = (abs(molecule1.total_velocity.x) + abs(molecule1.total_velocity.y)) / 50.0
             pressure += momentum * scale_factor
 
+        # gentle damping — molecules naturally slow down so bar falls without energy input
+        for mol in self.molecules:
+            mol.total_velocity *= 0.997
+
         # show all the stuff we figured out
         num_molecules = len(self.molecules) if len(self.molecules) > 0 else 1
         avg_temperature = temperature / num_molecules  # available to mission tick every frame
+
+        if self.energy_bar is not None and self.molecules:
+            total_spd = 0.0
+            for mol in self.molecules:
+                try:
+                    total_spd += mol.total_velocity.length()
+                except (OverflowError, ValueError):
+                    pass
+            self.energy_bar.feed(total_spd / len(self.molecules))
 
         if self.frame_counter % self.ui_update_every == 0:
             # Total Energy: arbitrary units (AU), realistic scale 0-1000
@@ -681,7 +723,7 @@ class GameLayout(Widget):
 
             # Temperature: Kelvin-like units, realistic molecular scale
             self.temperature_label.text = f"Temperature: {avg_temperature:.2f}"
-            
+
             # Pressure: how hard molecules hit walls (doesnt mean physicsreal units)
             self.pressure_label.text = f"Pressure: {pressure:.2f}"
         # change bond lines after molecules move
@@ -755,7 +797,7 @@ class GameLayout(Widget):
         
     def set_delta(self, value):
         """Update the timestep for Verlet integration."""
-        self.delta = value
+        self.delta = max(1 / 60.0, float(value))
 
     def toggle_intermolecular_forces(self):
         """Toggle LJ force computation and visualization lines together."""

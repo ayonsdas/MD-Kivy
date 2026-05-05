@@ -1,36 +1,61 @@
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from CustomSlider import CustomSlider
-from kivy.graphics import Color, Rectangle
-import os
-from performance_monitor import get_global_monitor  # <-- global access point
+from kivy.graphics import Color, RoundedRectangle, Line
+from performance_monitor import get_global_monitor
+
 
 class SliderBox(BoxLayout):
-    """A widget that encapsulates a slider with a label, a background, and a border."""
+    """Styled slider card: dark background, cyan border, short name + live value."""
 
     def __init__(self, label_text, min_value, max_value, default_value, step, callback, **kwargs):
         super().__init__(**kwargs)
         self.orientation = 'vertical'
-        self.font_path = os.path.join(os.path.dirname(__file__), "Fonts/Impact.ttf")
+        self.padding   = [8, 3, 8, 3]
+        self.spacing   = 2
 
+        # background + border
         with self.canvas.before:
-            Color(0.2, 0.2, 0.2, 1)
-            self.bg_rect = Rectangle(pos=self.pos, size=self.size)
+            Color(0.04, 0.07, 0.15, 1.0)
+            self.bg = RoundedRectangle(pos=self.pos, size=self.size, radius=[(8, 8)] * 4)
+            Color(0.0, 0.55, 0.9, 0.75)
+            self.border = Line(
+                rounded_rectangle=[self.x, self.y, self.width, self.height, 8],
+                width=1.4
+            )
+        self.bind(pos=self._sync_bg, size=self._sync_bg)
 
-        self.bind(pos=self.update_graphics, size=self.update_graphics)
-        self.bind(size=self._update_label_text_size)
+        # first word only as short name — keeps labels tight
+        short_name = label_text.split('(')[0].strip().split()[0].upper()
 
-        # Add label
-        self.label = Label(
-            text=label_text,
-            size_hint=(1, 0.2),
-            font_name=self.font_path,
-            font_size=12,
-            pos_hint={"center_x": 0.5, "center_y": 0.8}
+        # header row: name left, live value right
+        header = BoxLayout(orientation='horizontal', size_hint=(1, None), height=24)
+
+        self.name_label = Label(
+            text=short_name,
+            font_size='15sp',
+            bold=True,
+            color=(0.78, 0.88, 1.0, 1),
+            halign='left',
+            valign='middle',
         )
-        self.add_widget(self.label)
+        self.name_label.bind(size=self.name_label.setter('text_size'))
 
-        # make a slider and add it
+        self.value_label = Label(
+            text=f'{default_value:.2f}',
+            font_size='15sp',
+            bold=True,
+            color=(0.0, 0.85, 1.0, 1),
+            halign='right',
+            valign='middle',
+        )
+        self.value_label.bind(size=self.value_label.setter('text_size'))
+
+        header.add_widget(self.name_label)
+        header.add_widget(self.value_label)
+        self.add_widget(header)
+
+        # slider
         self.slider = CustomSlider(
             min=min_value,
             max=max_value,
@@ -38,30 +63,20 @@ class SliderBox(BoxLayout):
             step=step,
             track_image="Graphics/SliderTrack.png",
             thumb_image="Graphics/SliderThumb.png",
-            size_hint=(0.7, None),
-            pos_hint={"center_x": 0.5, "center_y": 0.3},
-            height=10
+            size_hint=(1, None),
+            height=30,
         )
-        self.slider.bind(value=self.on_slider_change)
+        self.slider.bind(value=self._on_value)
         self.add_widget(self.slider)
 
         self.external_callback = callback
 
-    def on_slider_change(self, instance, value):
+    def _on_value(self, instance, value):
+        self.value_label.text = f'{value:.2f}'
         if self.external_callback:
             self.external_callback(value)
 
-        try:
-            monitor = get_global_monitor()
-            if monitor:
-                monitor.trigger_boost(40.0)  # Simulate activity
-        except Exception as e:
-            print("[Slider boost error]", e)
-
-    def update_graphics(self, *args):
-        self.bg_rect.pos = self.pos
-        self.bg_rect.size = self.size
-
-    def _update_label_text_size(self, *args):
-        self.label.height = self.height * 0.3
-        self.label.font_size = self.height * 0.2
+    def _sync_bg(self, *args):
+        self.bg.pos  = self.pos
+        self.bg.size = self.size
+        self.border.rounded_rectangle = [self.x, self.y, self.width, self.height, 8]

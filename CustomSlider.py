@@ -29,7 +29,7 @@ class CustomSlider(Widget):
         self.thumb = Image(
             source=self.thumb_image,
             size_hint=(None, None),
-            size=(30, 30),
+            size=(40, 40),
             allow_stretch=True,
         )
 
@@ -81,8 +81,8 @@ class CustomSlider(Widget):
     def update_positions(self, *args):
         """update track and thumb positions"""
         self.slider_length = self.width  # resize to match how wide it is
-        self.track.size = (self.slider_length, 10)  # update size too
-        self.track.pos = (self.x, self.center_y - 5)  # Center the track vertically
+        self.track.size = (self.slider_length, 14)
+        self.track.pos = (self.x, self.center_y - 7)
         self.update_thumb_from_value()
         
     def update_thumb_from_value(self, *args):

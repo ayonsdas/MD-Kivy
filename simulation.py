@@ -33,6 +33,8 @@ from arduino_performance_graph import ArduinoGraph
 from kivy.clock import Clock
 from kivy.metrics import mm
 from makey_makey import MakeyMakeyMonitor, KEY_LEGEND
+from energy_bar import EnergyBar
+from energy_input import EnergyInputWidget
 
 Clock.max_iteration = 1000
 
@@ -71,6 +73,85 @@ class GameScreen(Screen):
 
 #        GameLayout to root
         self.root.add_widget(self.game_area)
+
+        # ── Energy thermometer bar — foldable, right of game_area ────────────
+        self._energy_bar_visible = False
+        self.energy_bar = EnergyBar(game_area_ref=self.game_area)
+        self.energy_bar.size_hint = (0.025, 0)    # collapsed by default
+        self.energy_bar.opacity   = 0
+        self.energy_bar.pos_hint  = {'x': 0.822, 'y': 0.26}
+        self.root.add_widget(self.energy_bar)
+        self.game_area.energy_bar = self.energy_bar
+
+        # small toggle button just above where the bar lives
+        self.energy_bar_btn = Button(
+            text='+',
+            size_hint=(0.025, 0.032),
+            pos_hint={'x': 0.822, 'y': 0.83},
+            background_normal='',
+            background_color=(0, 0, 0, 0),
+            color=(0.3, 0.9, 1.0, 1),
+            font_size='14sp',
+            bold=True,
+        )
+        with self.energy_bar_btn.canvas.before:
+            Color(0.04, 0.12, 0.20, 0.92)
+            self._ebar_btn_bg = RoundedRectangle(
+                pos=self.energy_bar_btn.pos,
+                size=self.energy_bar_btn.size,
+                radius=[(6, 6)] * 4,
+            )
+        self.energy_bar_btn.bind(
+            pos=lambda *a: setattr(self._ebar_btn_bg, 'pos', self.energy_bar_btn.pos),
+            size=lambda *a: setattr(self._ebar_btn_bg, 'size', self.energy_bar_btn.size),
+        )
+        self.energy_bar_btn.bind(on_press=lambda x: self._toggle_energy_bar())
+        self.root.add_widget(self.energy_bar_btn)
+
+        # ── Energy input (foldable, right panel) ─────────────────────────────
+        self.energy_input = EnergyInputWidget(game_area_ref=self.game_area)
+        self.energy_input.size_hint = (0.14, 0)
+        self.energy_input.opacity   = 0
+        self.energy_input.pos_hint  = {'right': 0.99, 'top': 0.70}
+        self.root.add_widget(self.energy_input)
+
+        self.energy_input_label = Label(
+            text='[b]Energy Input[/b]',
+            markup=True,
+            font_size=Window.height * 0.028,
+            color=(1.0, 0.6, 0.2, 1),
+            size_hint=(0.14, 0.04),
+            pos_hint={'right': 0.99, 'top': 0.51},
+            halign='center', valign='middle',
+            opacity=0,
+        )
+        self.energy_input_label.bind(size=self.energy_input_label.setter('text_size'))
+        self.root.add_widget(self.energy_input_label)
+
+        self._energy_input_visible = False
+        self.energy_input_btn = Button(
+            text='+',
+            size_hint=(0.04, 0.032),
+            pos_hint={'right': 0.99, 'y': 0.48},
+            background_normal='',
+            background_color=(0, 0, 0, 0),
+            color=(1.0, 0.65, 0.2, 1),
+            font_size='15sp',
+            bold=True,
+        )
+        with self.energy_input_btn.canvas.before:
+            Color(0.20, 0.14, 0.06, 0.90)
+            self._einput_btn_bg = RoundedRectangle(
+                pos=self.energy_input_btn.pos,
+                size=self.energy_input_btn.size,
+                radius=[(10, 10)] * 4,
+            )
+        self.energy_input_btn.bind(
+            pos=lambda *a: setattr(self._einput_btn_bg, 'pos', self.energy_input_btn.pos),
+            size=lambda *a: setattr(self._einput_btn_bg, 'size', self.energy_input_btn.size),
+        )
+        self.energy_input_btn.bind(on_press=lambda x: self._toggle_energy_input())
+        self.root.add_widget(self.energy_input_btn)
 
         # RIGHT SIDE PANEL with stuff
         # Using FloatLayout for screen-size independent positioning
@@ -191,6 +272,8 @@ class GameScreen(Screen):
         self.arduino_status_container.add_widget(self.arduino_status_label)
         
         self.root.add_widget(self.arduino_status_container)
+
+        # ── Energy injection slider (foldable, bottom-left, for when Arduino off) ─
 
         # Add Everything to the Screen
         self.add_widget(self.root)
@@ -327,6 +410,34 @@ class GameScreen(Screen):
             self.cpu_usage_label.opacity = 1
             self._cpu_expanded = True
 
+    def _toggle_energy_bar(self):
+        from kivy.animation import Animation
+        if self._energy_bar_visible:
+            anim = Animation(opacity=0, duration=0.15) + Animation(size_hint_y=0, duration=0.15)
+            anim.start(self.energy_bar)
+            self.energy_bar_btn.text = '+'
+            self._energy_bar_visible = False
+        else:
+            anim = Animation(size_hint_y=0.55, duration=0.20) + Animation(opacity=1, duration=0.15)
+            anim.start(self.energy_bar)
+            self.energy_bar_btn.text = '−'
+            self._energy_bar_visible = True
+
+    def _toggle_energy_input(self):
+        from kivy.animation import Animation
+        if self._energy_input_visible:
+            anim = Animation(opacity=0, duration=0.15) + Animation(size_hint_y=0, duration=0.15)
+            anim.start(self.energy_input)
+            self.energy_input_label.opacity = 0
+            self.energy_input_btn.text = '+'
+            self._energy_input_visible = False
+        else:
+            anim = Animation(size_hint_y=0.18, duration=0.15) + Animation(opacity=1, duration=0.15)
+            anim.start(self.energy_input)
+            self.energy_input_label.opacity = 1
+            self.energy_input_btn.text = '−'
+            self._energy_input_visible = True
+
     def _toggle_arduino_graph(self):
         from kivy.animation import Animation
         if self._arduino_graph_visible:
@@ -437,6 +548,7 @@ class GameScreen(Screen):
 
     def retry_arduino_connect(self):
         # Close existing, attempt to re-open without blocking UI
+        # IT"S FIXED OOOOOOOOOO
         try:
             if self.game_area.arduino:
                 self.game_area.arduino.close()
@@ -465,13 +577,13 @@ class GameScreen(Screen):
 
         ui_panel = BoxLayout(
             orientation='vertical',
-            size_hint=(0.8, 0.20),
-            pos_hint={'center_x': 0.5, 'center_y': 0.22},
+            size_hint=(0.8, 0.18),
+            pos_hint={'center_x': 0.5, 'center_y': 0.23},
         )
 
         slider_grid = GridLayout(
             cols=3, rows=2,
-            size_hint=(1, 0.78),
+            size_hint=(1, 0.84),
             spacing=(sp_x, sp_y),
             padding=[pad, pad, pad, pad]
         )
@@ -490,7 +602,7 @@ class GameScreen(Screen):
         )
         delta_box = SliderBox(
             "Delta (Timestep update for Verlet's Algorithm) (T increase, G decrease)",
-            0, 1, 1 / 60.0, 1 / 60.0, self.game_area.set_delta
+            1 / 60.0, 1, 1 / 60.0, 1 / 60.0, self.game_area.set_delta
         )
         speed_box = SliderBox(
             "Speed of Simulation (Y increase, H decrease)",
@@ -515,13 +627,35 @@ class GameScreen(Screen):
         self.game_area.speed_slider = speed_box.slider
         self.game_area.size_slider = size_box.slider
 
-        # Verlet/Euler toggle row — centred below the sliders
+        # Verlet/Euler + Vectors toggle row — centred below the sliders
         verlet_row = BoxLayout(orientation='horizontal', size_hint=(1, 0.22))
         self.verlet_button = self.create_hover_button("Verlet-Off", self.toggle_verlet_mode)
         self.verlet_button.size_hint = (0.25, 1)
-        verlet_row.add_widget(Widget(size_hint=(0.375, 1)))
+
+        self.bonds_button = HoverItem(
+            size_hint=(0.25, 1),
+            hoverSource="Graphics/Vectors_Highlighted.png",
+            defaultSource="Graphics/Vectors.png",
+            function=lambda x: self.toggle_force_arrows()
+        )
+        with self.bonds_button.canvas.after:
+            Color(0.45, 0.48, 0.56, 0.85)
+            _bonds_border = Line(rectangle=(self.bonds_button.x, self.bonds_button.y,
+                                            self.bonds_button.width, self.bonds_button.height), width=1.5)
+        self.bonds_button.bind(
+            pos=lambda *a: setattr(_bonds_border, 'rectangle',
+                (self.bonds_button.x, self.bonds_button.y,
+                 self.bonds_button.width, self.bonds_button.height)),
+            size=lambda *a: setattr(_bonds_border, 'rectangle',
+                (self.bonds_button.x, self.bonds_button.y,
+                 self.bonds_button.width, self.bonds_button.height)),
+        )
+
+        verlet_row.add_widget(Widget(size_hint=(0.125, 1)))
         verlet_row.add_widget(self.verlet_button)
-        verlet_row.add_widget(Widget(size_hint=(0.375, 1)))
+        verlet_row.add_widget(Widget(size_hint=(0.25, 1)))
+        verlet_row.add_widget(self.bonds_button)
+        verlet_row.add_widget(Widget(size_hint=(0.125, 1)))
 
         ui_panel.add_widget(slider_grid)
         ui_panel.add_widget(verlet_row)
@@ -667,24 +801,6 @@ class GameScreen(Screen):
         self.presets_button = self.create_hover_button("Why", self.toggle_sliders)
         self.presets_button.hoverSource = "Graphics/Why_Highlighted.png"
         self.use_forces_button = self.create_hover_button("Forces-Off", self.toggle_intermolecular_forces)
-        self.bonds_button = HoverItem(
-            size_hint=(1, 1),
-            hoverSource="Graphics/Vectors_Highlighted.png",
-            defaultSource="Graphics/Vectors.png",
-            function=lambda x: self.toggle_force_arrows()
-        )
-        with self.bonds_button.canvas.after:
-            Color(0.45, 0.48, 0.56, 0.85)
-            _bonds_border = Line(rectangle=(self.bonds_button.x, self.bonds_button.y,
-                                            self.bonds_button.width, self.bonds_button.height), width=1.5)
-        self.bonds_button.bind(
-            pos=lambda *a: setattr(_bonds_border, 'rectangle',
-                (self.bonds_button.x, self.bonds_button.y,
-                 self.bonds_button.width, self.bonds_button.height)),
-            size=lambda *a: setattr(_bonds_border, 'rectangle',
-                (self.bonds_button.x, self.bonds_button.y,
-                 self.bonds_button.width, self.bonds_button.height)),
-        )
         self.clear_button = self.create_hover_button("Clear", self.clear_game_area)
         self.start_stop_button = self.create_hover_button("Start", self.toggle_simulation)
         self.back_button = self.create_hover_button("Back", self.go_back)
@@ -693,7 +809,6 @@ class GameScreen(Screen):
         bottom_row.add_widget(self.preset_activate)
         bottom_row.add_widget(self.presets_button)
         bottom_row.add_widget(self.use_forces_button)
-        bottom_row.add_widget(self.bonds_button)
         bottom_row.add_widget(self.start_stop_button)
         bottom_row.add_widget(self.clear_button)
         bottom_row.add_widget(self.back_button)
@@ -779,12 +894,19 @@ class GameScreen(Screen):
     # toggle_combine was removed (dead code with broken return statement)
 
     def toggle_simulation(self):
-        """Toggle the simulation state."""
+        """Toggle the simulation state. STOP resets fully; START begins fresh."""
         if self.game_area.simulation_running:
             self.start_stop_button.hoverSource="Graphics/Start_Highlighted.png"
             self.start_stop_button.defaultSource="Graphics/Start.png"
             self.start_stop_button.source = self.start_stop_button.hoverSource if self.start_stop_button.use else self.start_stop_button.defaultSource
-            self.game_area.stop_simulation()
+            self.game_area.reset_simulation()
+            # sync UI buttons to match reset state
+            self.use_forces_button.hoverSource = "Graphics/Forces-Off_Highlighted.png"
+            self.use_forces_button.defaultSource = "Graphics/Forces-Off.png"
+            self.use_forces_button.source = self.use_forces_button.hoverSource if self.use_forces_button.use else self.use_forces_button.defaultSource
+            self.bonds_button.hoverSource = "Graphics/Vectors_Highlighted.png"
+            self.bonds_button.defaultSource = "Graphics/Vectors.png"
+            self.bonds_button.source = self.bonds_button.hoverSource if self.bonds_button.use else self.bonds_button.defaultSource
         else:
             self.start_stop_button.hoverSource="Graphics/Stop_Highlighted.png"
             self.start_stop_button.defaultSource="Graphics/Stop.png"

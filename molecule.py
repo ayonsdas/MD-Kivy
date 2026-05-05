@@ -71,16 +71,25 @@ class Molecule(Widget):
         self.molecule_shape.size = (mr * 2, mr * 2)
 
     def fix_speed(self):
-        if self.total_velocity.length() > self.speed_cap:
-            self.total_velocity *= self.speed_cap / self.total_velocity.length()
+        try:
+            spd = self.total_velocity.length()
+        except (OverflowError, ValueError):
+            self.total_velocity = Vector(0, 0)
+            return
+        if spd > self.speed_cap:
+            self.total_velocity *= self.speed_cap / spd
 
     def fix_force(self):
-        fx, fy = self.total_force
-        if not (abs(fx) < 1e15 and abs(fy) < 1e15):
-            self.total_force = self.total_force * 0  # zero out inf/NaN
-            return
-        if self.total_force.length() > self.force_cap:
-            self.total_force *= self.force_cap / self.total_force.length()
+        try:
+            fx, fy = self.total_force
+            if not (abs(fx) < 1e15 and abs(fy) < 1e15):
+                self.total_force = Vector(0, 0)
+                return
+            fl = self.total_force.length()
+            if fl > self.force_cap:
+                self.total_force *= self.force_cap / fl
+        except (OverflowError, ValueError):
+            self.total_force = Vector(0, 0)
 
     def fix_radius(self, new_radius):
         self.pos = (self.pos[0] - new_radius + self.radius, self.pos[1] - new_radius + self.radius)
@@ -100,20 +109,26 @@ class Molecule(Widget):
         self.update_color_based_on_speed()
         self.update_force_arrow()
 
-    def move_nonVerlet(self):
-        self.total_velocity += self.total_force
+    def move_nonVerlet(self, delta):
+        self.fix_force()
+        self.total_velocity += self.total_force * delta   # Euler: v += a*dt
         self.fix_speed()
-        self.pos = self.total_velocity + self.pos
+        self.pos = self.total_velocity * delta + self.pos  # Euler: x += v*dt (less stable than Verlet)
         self._update_shape_positions()
         self.bounce_off_walls()
         self.update_color_based_on_speed()
         self.update_force_arrow()
 
     def bounce_off_walls(self):
-        # bounce when hitting wall
-        if self.x <= self.parentpos[0] or self.right >= self.parentpos[0] + self.parentsize[0]:
+        cx, cy = self.pos[0], self.pos[1]
+        r = self.radius
+        left   = self.parentpos[0]
+        right  = self.parentpos[0] + self.parentsize[0]
+        bottom = self.parentpos[1]
+        top    = self.parentpos[1] + self.parentsize[1]
+        if cx - r <= left or cx + r >= right:
             self.total_velocity = Vector(-self.total_velocity.x, self.total_velocity.y)
-        if self.y <= self.parentpos[1] or self.top >= self.parentpos[1] + self.parentsize[1]:
+        if cy - r <= bottom or cy + r >= top:
             self.total_velocity = Vector(self.total_velocity.x, -self.total_velocity.y)
         self.keep_within_bounds()
 
@@ -134,15 +149,16 @@ class Molecule(Widget):
         self.keep_within_bounds()
 
     def keep_within_bounds(self):
-        # keep molecule inside the box
-        if self.x < self.parentpos[0]:
-            self.x = self.parentpos[0]
-        if self.right > self.parentpos[0] + self.parentsize[0]:
-            self.right = self.parentpos[0] + self.parentsize[0]
-        if self.y < self.parentpos[1]:
-            self.y = self.parentpos[1]
-        if self.top > self.parentpos[1] + self.parentsize[1]:
-            self.top = self.parentpos[1] + self.parentsize[1]
+        cx, cy = self.pos[0], self.pos[1]
+        r = self.radius
+        left   = self.parentpos[0]
+        right  = self.parentpos[0] + self.parentsize[0]
+        bottom = self.parentpos[1]
+        top    = self.parentpos[1] + self.parentsize[1]
+        new_cx = max(left + r, min(cx, right - r))
+        new_cy = max(bottom + r, min(cy, top - r))
+        if new_cx != cx or new_cy != cy:
+            self.pos = (new_cx, new_cy)
         self._update_shape_positions()
 
     def collide_widget(self, other):
