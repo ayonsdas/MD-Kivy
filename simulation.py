@@ -480,8 +480,71 @@ class GameScreen(Screen):
         elif preset == "Gas":
             self.game_area.generate_gas()
 
+    def _make_query_btn(self, pos_hint, callback):
+        """Small styled circle '?' button — replaces HoverItem image buttons."""
+        import os as _os
+        from kivy.graphics import Color, Ellipse, Line as GLine
+        _font = _os.path.join(_os.path.dirname(__file__), "Fonts/Impact.ttf")
+        btn = Button(
+            text='?',
+            size_hint=(0.030, 0.030),
+            pos_hint=pos_hint,
+            background_normal='', background_color=(0, 0, 0, 0),
+            color=(0.0, 0.85, 1.0, 1),
+            font_name=_font,
+        )
+        with btn.canvas.before:
+            Color(0.04, 0.10, 0.28, 0.95)
+            _bg = Ellipse(pos=btn.pos, size=btn.size)
+            Color(0.15, 0.65, 1.0, 0.85)
+            _brd = GLine(ellipse=(btn.x, btn.y, btn.width, btn.height), width=1.5)
+        def _sync(*a):
+            _bg.pos = btn.pos
+            _bg.size = btn.size
+            _brd.ellipse = (btn.x, btn.y, btn.width, btn.height)
+            btn.font_size = f'{max(9, int(btn.height * 0.52))}sp'
+        btn.bind(pos=_sync, size=_sync)
+        btn.bind(on_press=lambda *a: callback())
+        return btn
+
     def add_ui_elements(self, root):
         """add all the sliders and buttons and stuff"""
+        # shared description label — shown when any slider '?' is tapped
+        import os as _os
+        _font = _os.path.join(_os.path.dirname(__file__), "Fonts/Impact.ttf")
+        self._slider_info_label = Label(
+            text='',
+            font_name=_font,
+            font_size='13sp',
+            color=(0.78, 0.90, 1.0, 1),
+            halign='left', valign='middle',
+            size_hint=(0.75, None),
+            height=0, opacity=0,
+            pos_hint={'center_x': 0.48, 'y': 0.10},
+        )
+        with self._slider_info_label.canvas.before:
+            Color(0.04, 0.07, 0.15, 0.96)
+            self._sil_bg = Rectangle(
+                pos=self._slider_info_label.pos,
+                size=self._slider_info_label.size,
+            )
+            Color(0.0, 0.55, 0.9, 0.75)
+            self._sil_border = Line(
+                rectangle=(
+                    self._slider_info_label.x, self._slider_info_label.y,
+                    self._slider_info_label.width, self._slider_info_label.height,
+                ),
+                width=1.4,
+            )
+        def _sync_sil(*a):
+            lbl = self._slider_info_label
+            self._sil_bg.pos  = lbl.pos
+            self._sil_bg.size = lbl.size
+            self._sil_border.rectangle = (lbl.x, lbl.y, lbl.width, lbl.height)
+            lbl.text_size = (lbl.width - 14, None)
+        self._slider_info_label.bind(pos=_sync_sil, size=_sync_sil)
+        root.add_widget(self._slider_info_label)
+
         self.ui_panel = self.create_sliders()
         self.ui_panel.opacity = 0  # Hidden by default
         self.ui_panel_visible = False  # Track visibility state
@@ -490,24 +553,30 @@ class GameScreen(Screen):
         root.add_widget(bottom_row)
         self.add_stat_labels(root)
         
-        self.lennard_jones_text = TextBlurb(text="Lennard-Jones potential: a simple mathematical model that describes the attractive and repulsive forces between atoms or molecules, like how they pull towards each other at a moderate distance but push away when very close.",
-                                            parent_size_prop=(0.15, 0.07),
-                                            parent_pos_prop=(0.9, 0.38))
-        self.query_lennard_jones = HoverItem(size_hint=(0.05, 0.05), pos_hint={"center_x":0.93, "center_y":0.3}, height=50, hoverSource="Graphics/Query_Highlighted.png", defaultSource="Graphics/Query.png", function=lambda x: self.toggle_info(self.query_lennard_jones, self.lennard_jones_text))
-        
-        self.verlet_text = TextBlurb(text="Verlet algorithm: a method used to calculate the movement of these particles in a simulation, allowing us to track how they interact based on the Lennard-Jones potential over time.",
-                                            parent_size_prop=(0.15, 0.07),
-                                            parent_pos_prop=(0.87, 0.11))
-        self.query_verlet = HoverItem(size_hint=(0.05, 0.05), pos_hint={"center_x":0.77, "center_y":0.11}, height=50, hoverSource="Graphics/Query_Highlighted.png", defaultSource="Graphics/Query.png", function=lambda x: self.toggle_info(self.query_verlet, self.verlet_text))
-        
+        self.lennard_jones_text = TextBlurb(
+            text="Lennard-Jones potential: a simple mathematical model that describes the attractive and repulsive forces between atoms or molecules, like how they pull towards each other at a moderate distance but push away when very close.",
+            parent_size_prop=(0.15, 0.07),
+            parent_pos_prop=(0.9, 0.38))
+        self.query_lennard_jones = self._make_query_btn(
+            {"center_x": 0.93, "center_y": 0.3},
+            lambda: self.toggle_info(self.lennard_jones_text))
+
+        self.verlet_text = TextBlurb(
+            text="Verlet algorithm: a method used to calculate the movement of these particles in a simulation, allowing us to track how they interact based on the Lennard-Jones potential over time.",
+            parent_size_prop=(0.15, 0.07),
+            parent_pos_prop=(0.87, 0.11))
+        self.query_verlet = self._make_query_btn(
+            {"center_x": 0.77, "center_y": 0.11},
+            lambda: self.toggle_info(self.verlet_text))
+
         self.cursOr = Image()
         self.cursOr.source = "Graphics/Cursor.png"
         self.cursOr.size_hint = (0.02, 0.02)
         self.cursOr.allow_stretch = True
-        
+
         root.add_widget(self.query_lennard_jones)
         root.add_widget(self.lennard_jones_text)
-        
+
         root.add_widget(self.query_verlet)
         root.add_widget(self.verlet_text)
         
@@ -588,29 +657,56 @@ class GameScreen(Screen):
             padding=[pad, pad, pad, pad]
         )
 
+        # shared info popup — shows description for whichever slider '?' was tapped
+        _active = [None]
+        def _show_slider_info(text):
+            from kivy.animation import Animation
+            lbl = self._slider_info_label
+            if lbl.text == text and lbl.height > 0:
+                Animation(height=0, opacity=0, duration=0.12).start(lbl)
+                lbl.text = ''
+                _active[0] = None
+            else:
+                lbl.text = text
+                _active[0] = text
+                Animation(height=45, opacity=1, duration=0.12).start(lbl)
+
         gravity_box = SliderBox(
             "Gravity (W increase, S decrease)",
-            0, 10, 0, 0.01, self.game_area.set_gravity, size_hint=(1, 1)
+            0, 10, 0, 0.01, self.game_area.set_gravity,
+            info_text="Pulls all molecules downward, just like real gravity. Set to 0 for a weightless space environment!",
+            info_callback=_show_slider_info,
+            size_hint=(1, 1)
         )
         epsilon_box = SliderBox(
             "Epsilon (Potential Depth used for Lennard-Jones force between Molecules) (E increase, D decrease)",
-            0, 10, 1, 0.1, self.game_area.set_epsilon
+            0, 10, 1, 0.1, self.game_area.set_epsilon,
+            info_text="How strongly molecules attract each other. High ε = sticky molecules that clump together. Low ε = they barely feel each other.",
+            info_callback=_show_slider_info,
         )
         sigma_box = SliderBox(
             "Sigma (Potential Distance used for Lennard-Jones force between Molecules) (R increase, F decrease)",
-            0.1, 3, 1, 0.01, self.game_area.set_sigma
+            0.1, 3, 1, 0.01, self.game_area.set_sigma,
+            info_text="Natural spacing between molecules — like the size of the atom. High σ = molecules settle farther apart from each other.",
+            info_callback=_show_slider_info,
         )
         delta_box = SliderBox(
             "Delta (Timestep update for Verlet's Algorithm) (T increase, G decrease)",
-            1 / 60.0, 1, 1 / 60.0, 1 / 60.0, self.game_area.set_delta
+            1 / 60.0, 1, 1 / 60.0, 1 / 60.0, self.game_area.set_delta,
+            info_text="Simulation timestep size. Larger Δt = faster but less accurate. Too large causes molecules to fly apart — try it!",
+            info_callback=_show_slider_info,
         )
         speed_box = SliderBox(
             "Speed of Simulation (Y increase, H decrease)",
-            0.1, 1, 1, 0.1, self.game_area.set_speed
+            0.1, 1, 1, 0.1, self.game_area.set_speed,
+            info_text="How fast the simulation clock runs. Does not change the physics, just how quickly you watch it play out.",
+            info_callback=_show_slider_info,
         )
         size_box = SliderBox(
             "Size of Molecules (U increase, J decrease)",
-            0.2, 1, 0.6, 0.05, self.game_area.set_size
+            0.2, 1, 0.6, 0.05, self.game_area.set_size,
+            info_text="Physical radius of each molecule. Larger molecules collide sooner and are easier to see on screen.",
+            info_callback=_show_slider_info,
         )
 
         slider_grid.add_widget(gravity_box)
@@ -662,14 +758,7 @@ class GameScreen(Screen):
 
         return ui_panel
     
-    def toggle_info(self, button, text):
-        if button.hoverSource == 'Graphics/Query_Highlighted.png':
-            button.hoverSource = 'Graphics/Query_On_Highlighted.png'
-            button.defaultSource = 'Graphics/Query_On.png'
-        else:
-            button.hoverSource = 'Graphics/Query_Highlighted.png'
-            button.defaultSource = 'Graphics/Query.png'
-        button.source = button.hoverSource if button.use else button.defaultSource
+    def toggle_info(self, text):
         text.toggle_visibility()
 
     def toggle_sliders(self):

@@ -1,14 +1,19 @@
+import os
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
+from kivy.uix.button import Button
 from CustomSlider import CustomSlider
 from kivy.graphics import Color, RoundedRectangle, Line
 from performance_monitor import get_global_monitor
+
+_IMPACT = os.path.join(os.path.dirname(__file__), "Fonts/Impact.ttf")
 
 
 class SliderBox(BoxLayout):
     """Styled slider card: dark background, cyan border, short name + live value."""
 
-    def __init__(self, label_text, min_value, max_value, default_value, step, callback, **kwargs):
+    def __init__(self, label_text, min_value, max_value, default_value, step, callback,
+                 info_text='', info_callback=None, **kwargs):
         super().__init__(**kwargs)
         self.orientation = 'vertical'
         self.padding   = [8, 3, 8, 3]
@@ -53,6 +58,19 @@ class SliderBox(BoxLayout):
 
         header.add_widget(self.name_label)
         header.add_widget(self.value_label)
+
+        if info_text and info_callback:
+            info_btn = Button(
+                text='?',
+                size_hint=(None, 1), width=22,
+                background_normal='', background_color=(0.04, 0.10, 0.28, 0.95),
+                color=(0.0, 0.85, 1.0, 1),
+                font_name=_IMPACT,
+                font_size='14sp',
+            )
+            info_btn.bind(on_press=lambda *a: info_callback(info_text))
+            header.add_widget(info_btn)
+
         self.add_widget(header)
 
         # slider
