@@ -22,6 +22,7 @@ class Molecule(Widget):
 
         self.size = (self.radius * 2, self.radius * 2)
         self.total_force = Vector(0, 0)
+        #fixing the github sync issues
 
         self._draw_sphere()
 
